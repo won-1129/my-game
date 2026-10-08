@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111827">
+    <title>자기소개</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <main class="profile">
+      <header class="intro">
+        <p class="eyebrow">안녕하세요, 저는</p>
+        <h1>최원용</h1>
+        <p class="tagline">3D 애니메이션 전공 입니다.</p>
+      </header>
+
+      <section class="games" aria-labelledby="games-title">
+        <h2 id="games-title">좋아하는 게임</h2>
+        <p class="hint">게임을 누르면 표시를 바꿀 수 있어요.</p>
+        <ul class="game-list">
+          <li><a class="game-button game-button--maplestory" href="https://maplestory.nexon.com/Home/Main">메이플스토리</a></li>
+          <li><a class="game-button game-button--overwatch" href="https://overwatch.blizzard.com/ko-kr/">오버워치</a></li>
+          <li><a class="game-button game-button--wuthering-waves" href="https://wutheringwaves.kurogames.com/ko-kr/">명조:워더링웨이브</a></li>
+        </ul>
+      </section>
+
+      <section class="idea-section" aria-labelledby="idea-title">
+        <h2 id="idea-title">만든 게임 아이디어</h2>
+        <div class="idea-slide" data-idea-slide>
+          <div
+            class="idea-input"
+            role="group"
+            aria-label="게임 아이디어 1 (읽기 전용)"
+          >
+            <p><strong>제목</strong>: 과제 피하기</p>
+            <p><strong>한 줄 설명</strong>: 무자비하게 쏟아지는 과제를 피해 살아남는 게임</p>
+            <p><strong>플레이어가 하는 일</strong>: 쏟아지는 과제를 제한시간동안 좌우 점프 움직임으로 피한다</p>
+            <p><strong>게임이 끝나는 조건</strong>: 제한시간동안 피해서 승리하거나 과제에 3번이상 맞으면 게임종료</p>
+          </div>
+        </div>
+        <div class="idea-slide" data-idea-slide hidden>
+          <div
+            class="idea-input"
+            role="group"
+            aria-label="게임 아이디어 2 (읽기 전용)"
+          >
+            <p><strong>제목</strong>: 방향키 막기</p>
+            <p><strong>한 줄 설명</strong>: 날아오는 방향키를 막는 게임</p>
+            <p><strong>플레이어가 하는 일</strong>: 날아오는 방향키의 모양을 맞춰 방향키를 눌러 없앤다</p>
+            <p><strong>게임이 끝나는 조건</strong>: 3번이상 못막으면 게임종료</p>
+          </div>
+        </div>
+        <div class="idea-slide" data-idea-slide hidden>
+          <div
+            class="idea-input"
+            role="group"
+            aria-label="게임 아이디어 3 (읽기 전용)"
+          >
+            <p><strong>제목</strong>: Dodge &amp; Survive</p>
+            <p><strong>한 줄 설명</strong>: 몰려오는 몬스터를 피하거나 아이템으로 물리치는 게임</p>
+            <p><strong>플레이어가 하는 일</strong>: 정해진 공간내에서 캐릭터를 방향키로 움직여 적들으 피하고 아이템을 먹으면서 버틴다</p>
+            <p><strong>게임이 끝나는 조건</strong>: 몬스터와 부딪히면 게임종료</p>
+          </div>
+        </div>
+        <nav class="idea-navigation" aria-label="게임 아이디어 페이지 이동">
+          <button class="idea-nav-button" id="previous-idea" type="button" aria-label="이전 아이디어" disabled>
+            &larr; 이전
+          </button>
+          <p class="idea-count" id="idea-count" aria-live="polite">아이디어 1 / 3</p>
+          <button class="idea-nav-button" id="next-idea" type="button" aria-label="다음 아이디어">
+            다음 &rarr;
+          </button>
+        </nav>
+      </section>
+
+      <footer class="date-footer">
+        <time id="today-date"></time>
+      </footer>
+    </main>
+  </body>
+</html>
