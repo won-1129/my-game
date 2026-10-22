@@ -2,10 +2,10 @@ const canvas = document.getElementById("game"); // HTML에서 게임 캔버스�
 const ctx = canvas.getContext("2d"); // 캔버스에 그림을 그릴 도구를 가져옵니다.
 
 // 첫 화면에 보이는 요소들의 위치와 크기입니다.
-const roadHeight = 150; // 화면 아래쪽 회색 길의 높이입니다.
+const roadHeight = 75; // 화면 아래쪽 회색 길의 높이입니다.
 const playerSize = 32; // 플레이어 사각형의 가로와 세로 크기입니다.
 const playerX = (canvas.width - playerSize) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
-const playerY = canvas.height - roadHeight + (roadHeight - playerSize) / 2; // 플레이어를 길의 세로 가운데에 둡니다.
+const playerY = canvas.height - roadHeight - playerSize; // 플레이어를 회색 길의 윗면에 올려둡니다.
 const obstacleRadius = 10; // 빨간 과제 원의 반지름입니다. 지름은 20픽셀입니다.
 const obstacles = [ // 움직이지 않는 첫 화면의 과제 10개 중심 좌표입니다.
   { x: 70, y: 90 },
@@ -29,7 +29,7 @@ skyGradient.addColorStop(1, "#b9e7f5");
 ctx.fillStyle = skyGradient;
 ctx.fillRect(0, 0, canvas.width, canvas.height - roadHeight);
 
-// 화면 아래쪽 1/4에 회색 길을 그립니다.
+// 화면 아래쪽에 회색 길을 그립니다.
 ctx.fillStyle = "gray";
 ctx.fillRect(0, canvas.height - roadHeight, canvas.width, roadHeight);
 
@@ -41,7 +41,7 @@ obstacles.forEach((obstacle) => {
   ctx.fill();
 });
 
-// 길 가운데에 파란색 32×32 플레이어를 그립니다.
+// 회색 길의 윗면 가운데에 파란색 32×32 플레이어를 그립니다.
 ctx.fillStyle = "blue";
 ctx.fillRect(playerX, playerY, playerSize, playerSize);
 
