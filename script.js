@@ -4,9 +4,10 @@ const ctx = canvas.getContext("2d"); // 캔버스에 그림을 그릴 도구를 
 // 게임 물체의 크기와 위치, 속도를 모아 둡니다.
 const roadHeight = 75; // 화면 아래쪽 회색 바다의 높이입니다.
 const roadTop = canvas.height - roadHeight; // 회색 바다가 시작되는 높이입니다.
-const playerSize = 32; // 플레이어 사각형의 가로와 세로 크기입니다.
-const playerX = (canvas.width - playerSize) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
-const playerY = roadTop - playerSize; // 플레이어를 회색 바다의 윗면에 올려둡니다.
+const playerWidth = 32; // 플레이어 사각형의 가로 크기입니다.
+const playerHeight = playerWidth * 1.5; // 플레이어의 세로 크기를 가로의 1.5배로 설정합니다.
+const playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
+const playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
 const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
@@ -219,8 +220,8 @@ function gameLoop() {
   obstacles.forEach((obstacle) => {
     obstacle.y += obstacle.speedY;
 
-    const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerSize));
-    const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerSize));
+    const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
+    const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
     const distanceX = obstacle.x - closestX;
     const distanceY = obstacle.y - closestY;
     const touchesPlayer =
@@ -276,7 +277,7 @@ function gameLoop() {
   });
 
   ctx.fillStyle = "blue";
-  ctx.fillRect(playerX, playerY, playerSize, playerSize);
+  ctx.fillRect(playerX, playerY, playerWidth, playerHeight);
 
   // 그리기: 충돌 지점에 퍼져 나가는 고리와 불꽃 파편을 그립니다.
   drawExplosions();
