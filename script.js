@@ -6,8 +6,14 @@ const roadHeight = 75; // 화면 아래쪽 회색 바다의 높이입니다.
 const roadTop = canvas.height - roadHeight; // 회색 바다가 시작되는 높이입니다.
 const playerWidth = 32; // 플레이어 사각형의 가로 크기입니다.
 const playerHeight = playerWidth * 1.5; // 플레이어의 세로 크기를 가로의 1.5배로 설정합니다.
-const playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
-const playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
+const playerSpeed = 5; // 플레이어가 한 프레임에 이동하는 픽셀 수입니다.
+const gravity = 0.5; // 매 프레임 세로 속도에 더하는 중력입니다.
+const jumpStrength = 12; // 점프할 때 적용하는 위쪽 속도의 크기입니다.
+let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
+let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
+let playerVelocityY = 0; // 플레이어의 세로 이동 속도입니다.
+let isOnGround = true; // 플레이어가 바닥에 있는지 저장합니다.
+const keys = {}; // 눌린 키의 현재 상태를 저장합니다.
 const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
@@ -213,6 +219,22 @@ function drawExplosions() {
 }
 
 function gameLoop() {
+  // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
+  const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
+  playerX = Math.max(
+    0,
+    Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
+  );
+
+  // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
+  playerVelocityY += gravity;
+  playerY += playerVelocityY;
+  if (playerY + playerHeight >= roadTop) {
+    playerY = roadTop - playerHeight;
+    playerVelocityY = 0;
+    isOnGround = true;
+  }
+
   // 지우기: 이전 프레임에 그린 화면을 지웁니다.
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -299,3 +321,30 @@ function gameLoop() {
 }
 
 requestAnimationFrame(gameLoop);
+
+document.addEventListener("keydown", (event) => {
+  if (
+    event.key === "ArrowLeft" ||
+    event.key === "ArrowRight" ||
+    event.key === "ArrowUp"
+  ) {
+    if (event.key === "ArrowUp" && !keys.ArrowUp && isOnGround) {
+      playerVelocityY = -jumpStrength;
+      isOnGround = false;
+    }
+    keys[event.key] = true; // 좌우 및 위 방향키를 누르고 있는 상태를 저장합니다.
+  }
+  if (event.key.startsWith("Arrow") || event.key === " ") {
+    event.preventDefault(); // 방향키와 스페이스바의 페이지 스크롤을 막습니다.
+  }
+});
+
+document.addEventListener("keyup", (event) => {
+  if (
+    event.key === "ArrowLeft" ||
+    event.key === "ArrowRight" ||
+    event.key === "ArrowUp"
+  ) {
+    keys[event.key] = false; // 좌우 및 위 방향키에서 손을 뗀 상태를 저장합니다.
+  }
+});
