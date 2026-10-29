@@ -89,12 +89,35 @@ const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
 const healEffectDuration = 36; // 회복 효과가 유지되는 프레임 수입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
+let score = 0; // 현재까지 버틴 시간 점수입니다.
+let gameState = "playing"; // 게임 진행 상태를 저장합니다.
 const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
 skyGradient.addColorStop(1, "#d8f1ff");
 
 function resetGame() {
+  // 플레이어와 게임 오브젝트를 처음 상태로 되돌립니다.
+  playerX = (canvas.width - playerWidth) / 2;
+  playerY = roadTop - playerHeight;
+  playerFacing = 1;
+  playerVelocityY = 0;
+  isOnGround = true;
+  playerHitFlashFrames = 0;
+  lives = 3;
+  score = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
+  lastRecoveryItemSpawnTime = performance.now();
+  recoveryItems.length = 0;
+  explosions.length = 0;
+  healEffects.length = 0;
+  Object.keys(keys).forEach((key) => {
+    keys[key] = false;
+  });
+  obstacles.forEach(resetObstacle);
+  clouds[0].x = canvas.width * 0.15;
+  clouds[1].x = canvas.width * 0.58;
+  clouds[2].x = canvas.width * 0.88;
+  gameState = "playing";
 }
 
 function drawCloud(cloud) {
@@ -112,7 +135,11 @@ function drawCloud(cloud) {
 }
 
 function drawPlayer() {
-  if (playerHitFlashFrames > 0 && Math.floor(playerHitFlashFrames / 5) % 2 === 0) {
+  if (
+    gameState === "playing" &&
+    playerHitFlashFrames > 0 &&
+    Math.floor(playerHitFlashFrames / 5) % 2 === 0
+  ) {
     return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
   }
 
@@ -325,125 +352,141 @@ function drawHealEffects() {
 }
 
 function gameLoop() {
-  const score = Math.floor((Date.now() - startTime) / 1000);
-  const currentTime = performance.now();
-  if (currentTime - lastRecoveryItemSpawnTime >= recoveryItemSpawnInterval) {
-    for (let index = 0; index < recoveryItemSpawnCount; index += 1) {
-      recoveryItems.push({
-        x: recoveryItemRadius + Math.random() * (canvas.width - recoveryItemRadius * 2),
-        y: -recoveryItemRadius * (index * 2 + 1),
-        speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
-      });
-    }
-    lastRecoveryItemSpawnTime = currentTime;
-  }
-
-  if (playerHitFlashFrames > 0) {
-    playerHitFlashFrames -= 1;
-  }
-
-  // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
-  const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
-  if (moveX !== 0) {
-    playerFacing = moveX;
-  }
-  playerX = Math.max(
-    0,
-    Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
-  );
-
-  // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
-  playerVelocityY += gravity;
-  playerY += playerVelocityY;
-  if (playerY + playerHeight >= roadTop) {
-    playerY = roadTop - playerHeight;
-    playerVelocityY = 0;
-    isOnGround = true;
-  }
-
-  // 지우기: 이전 프레임에 그린 화면을 지웁니다.
+  // 게임 상태와 관계없이 매 프레임 화면을 새로 그립니다.
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 계산: 장애물을 아래로 움직이고, 플레이어나 회색 바다에 닿으면 위로 되돌립니다.
-  obstacles.forEach((obstacle) => {
-    obstacle.y += obstacle.speedY;
-
-    const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
-    const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
-    const distanceX = obstacle.x - closestX;
-    const distanceY = obstacle.y - closestY;
-    const touchesPlayer =
-      playerHitFlashFrames === 0 &&
-      distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
-
-    const touchesSea = obstacle.y + obstacleRadius >= roadTop;
-    if (touchesPlayer || touchesSea) {
-      if (touchesPlayer) {
-        lives = Math.max(0, lives - 1);
-        playerHitFlashFrames = playerHitFlashDuration;
+  if (gameState === "playing") {
+    score = Math.floor((Date.now() - startTime) / 1000);
+    const currentTime = performance.now();
+    if (currentTime - lastRecoveryItemSpawnTime >= recoveryItemSpawnInterval) {
+      for (let index = 0; index < recoveryItemSpawnCount; index += 1) {
+        recoveryItems.push({
+          x: recoveryItemRadius + Math.random() * (canvas.width - recoveryItemRadius * 2),
+          y: -recoveryItemRadius * (index * 2 + 1),
+          speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
+        });
       }
-      createExplosion(obstacle.x, obstacle.y);
-      resetObstacle(obstacle);
+      lastRecoveryItemSpawnTime = currentTime;
     }
-  });
 
-  // 회복 아이템을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
-  for (let index = recoveryItems.length - 1; index >= 0; index -= 1) {
-    const recoveryItem = recoveryItems[index];
-    recoveryItem.y += recoveryItem.speedY;
+    if (playerHitFlashFrames > 0) {
+      playerHitFlashFrames -= 1;
+    }
 
-    const closestX = Math.max(playerX, Math.min(recoveryItem.x, playerX + playerWidth));
-    const closestY = Math.max(playerY, Math.min(recoveryItem.y, playerY + playerHeight));
-    const distanceX = recoveryItem.x - closestX;
-    const distanceY = recoveryItem.y - closestY;
-    const touchesPlayer =
-      distanceX * distanceX + distanceY * distanceY <=
-      recoveryItemRadius * recoveryItemRadius;
+    // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
+    const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
+    if (moveX !== 0) {
+      playerFacing = moveX;
+    }
+    playerX = Math.max(
+      0,
+      Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
+    );
 
-    if (touchesPlayer) {
-      lives += 1;
-      healEffects.push({
-        x: playerX + playerWidth / 2,
-        y: playerY + playerHeight / 2,
-        age: 0,
-      });
-      recoveryItems.splice(index, 1);
-    } else if (recoveryItem.y + recoveryItemRadius >= roadTop) {
-      recoveryItems.splice(index, 1);
+    // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
+    playerVelocityY += gravity;
+    playerY += playerVelocityY;
+    if (playerY + playerHeight >= roadTop) {
+      playerY = roadTop - playerHeight;
+      playerVelocityY = 0;
+      isOnGround = true;
+    }
+
+    // 계산: 장애물을 아래로 움직이고, 플레이어와 닿으면 게임 오버 처리합니다.
+    obstacles.forEach((obstacle) => {
+      if (gameState !== "playing") {
+        return;
+      }
+
+      obstacle.y += obstacle.speedY;
+
+      const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
+      const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
+      const distanceX = obstacle.x - closestX;
+      const distanceY = obstacle.y - closestY;
+      const touchesPlayer =
+        playerHitFlashFrames === 0 &&
+        distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
+
+      const touchesSea = obstacle.y + obstacleRadius >= roadTop;
+      if (touchesPlayer || touchesSea) {
+        if (touchesPlayer) {
+          lives = Math.max(0, lives - 1);
+          playerHitFlashFrames = playerHitFlashDuration;
+          if (lives === 0) {
+            score = Math.floor((Date.now() - startTime) / 1000);
+            gameState = "gameover";
+          }
+        }
+        createExplosion(obstacle.x, obstacle.y);
+        resetObstacle(obstacle);
+      }
+    });
+
+    // 회복 아이템을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
+    for (
+      let index = recoveryItems.length - 1;
+      index >= 0 && gameState === "playing";
+      index -= 1
+    ) {
+      const recoveryItem = recoveryItems[index];
+      recoveryItem.y += recoveryItem.speedY;
+
+      const closestX = Math.max(playerX, Math.min(recoveryItem.x, playerX + playerWidth));
+      const closestY = Math.max(playerY, Math.min(recoveryItem.y, playerY + playerHeight));
+      const distanceX = recoveryItem.x - closestX;
+      const distanceY = recoveryItem.y - closestY;
+      const touchesPlayer =
+        distanceX * distanceX + distanceY * distanceY <=
+        recoveryItemRadius * recoveryItemRadius;
+
+      if (touchesPlayer) {
+        lives += 1;
+        healEffects.push({
+          x: playerX + playerWidth / 2,
+          y: playerY + playerHeight / 2,
+          age: 0,
+        });
+        recoveryItems.splice(index, 1);
+      } else if (recoveryItem.y + recoveryItemRadius >= roadTop) {
+        recoveryItems.splice(index, 1);
+      }
     }
   }
 
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
-  explosions.forEach((explosion) => {
-    explosion.age += 1;
-    explosion.particles.forEach((particle) => {
-      particle.x += particle.speedX;
-      particle.y += particle.speedY;
-      particle.speedY += explosionGravity;
+  if (gameState === "playing") {
+    explosions.forEach((explosion) => {
+      explosion.age += 1;
+      explosion.particles.forEach((particle) => {
+        particle.x += particle.speedX;
+        particle.y += particle.speedY;
+        particle.speedY += explosionGravity;
+      });
     });
-  });
-  for (let index = explosions.length - 1; index >= 0; index -= 1) {
-    if (explosions[index].age >= explosionDuration) {
-      explosions.splice(index, 1);
+    for (let index = explosions.length - 1; index >= 0; index -= 1) {
+      if (explosions[index].age >= explosionDuration) {
+        explosions.splice(index, 1);
+      }
     }
-  }
-  healEffects.forEach((effect) => {
-    effect.age += 1;
-  });
-  for (let index = healEffects.length - 1; index >= 0; index -= 1) {
-    if (healEffects[index].age >= healEffectDuration) {
-      healEffects.splice(index, 1);
+    healEffects.forEach((effect) => {
+      effect.age += 1;
+    });
+    for (let index = healEffects.length - 1; index >= 0; index -= 1) {
+      if (healEffects[index].age >= healEffectDuration) {
+        healEffects.splice(index, 1);
+      }
     }
-  }
 
-  // 계산: 구름을 천천히 오른쪽으로 옮기고 화면 밖에서 반대편으로 이어 붙입니다.
-  clouds.forEach((cloud) => {
-    const cloudWidth = canvas.width * cloud.size;
-    cloud.x += cloud.speedX;
-    if (cloud.x - cloudWidth / 2 > canvas.width) {
-      cloud.x = -cloudWidth / 2;
-    }
-  });
+    // 구름은 플레이 중에만 천천히 움직입니다.
+    clouds.forEach((cloud) => {
+      const cloudWidth = canvas.width * cloud.size;
+      cloud.x += cloud.speedX;
+      if (cloud.x - cloudWidth / 2 > canvas.width) {
+        cloud.x = -cloudWidth / 2;
+      }
+    });
+  }
 
   // 그리기: 하늘, 회색 바다, 장애물, 플레이어와 상태 표시를 그립니다.
   ctx.fillStyle = skyGradient;
@@ -487,6 +530,20 @@ function gameLoop() {
   ctx.font = "20px sans-serif";
   ctx.fillText(`점수: ${score}`, 18, 68);
 
+  if (gameState === "gameover") {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "white";
+    ctx.font = "bold 48px sans-serif";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 35);
+    ctx.font = "24px sans-serif";
+    ctx.fillText(`최종 점수: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+    ctx.font = "18px sans-serif";
+    ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 48);
+    ctx.textAlign = "start";
+  }
+
   requestAnimationFrame(gameLoop);
 }
 
@@ -494,6 +551,16 @@ resetGame();
 requestAnimationFrame(gameLoop);
 
 document.addEventListener("keydown", (event) => {
+  if (gameState === "gameover") {
+    if (event.key.toLowerCase() === "r" && !event.repeat) {
+      resetGame();
+    }
+    if (event.key.startsWith("Arrow") || event.key === " ") {
+      event.preventDefault();
+    }
+    return;
+  }
+
   const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
   if (controlKey) {
     if (controlKey === "ArrowUp" && !keys.ArrowUp && isOnGround) {
