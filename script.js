@@ -66,6 +66,9 @@ const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
 const obstacleMaxSpeed = 4; // 장애물의 최대 낙하 속도입니다.
+const bonusRadius = 10; // 목숨을 회복하는 녹색 원의 반지름입니다.
+const bonusSpawnInterval = 5000; // 녹색 원을 생성하는 간격(밀리초)입니다.
+const bonusSpawnCount = 2; // 한 번에 생성하는 녹색 원의 개수입니다.
 const clouds = [
   { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 0.22 },
   { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 0.16 },
@@ -79,8 +82,12 @@ const obstacles = Array.from({ length: obstacleCount }, () => ({
   y: Math.random() * canvas.height * 0.55,
   speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
 })); // 장애물마다 위치와 아래로 떨어지는 속도를 저장합니다.
+const bonusObstacles = []; // 목숨을 회복하는 녹색 원을 저장합니다.
+let lastBonusSpawnTime = performance.now(); // 마지막 녹색 원 생성 시각입니다.
 const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니다.
-const lives = 3; // 화면에 표시할 목숨 수입니다.
+const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
+const healEffectDuration = 36; // 회복 효과가 유지되는 프레임 수입니다.
+let lives = 3; // 남은 목숨 수를 저장합니다.
 const timerValue = "0.00"; // 화면에 표시할 버틴 시간입니다.
 const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
@@ -295,7 +302,37 @@ function drawExplosions() {
   ctx.globalAlpha = 1;
 }
 
+function drawHealEffects() {
+  healEffects.forEach((effect) => {
+    const progress = effect.age / healEffectDuration;
+    ctx.globalAlpha = 1 - progress;
+    ctx.strokeStyle = "#20c957";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, 6 + progress * 24, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#20c957";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("+1", effect.x, effect.y - 12 - progress * 20);
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "start";
+}
+
 function gameLoop() {
+  const currentTime = performance.now();
+  if (currentTime - lastBonusSpawnTime >= bonusSpawnInterval) {
+    for (let index = 0; index < bonusSpawnCount; index += 1) {
+      bonusObstacles.push({
+        x: bonusRadius + Math.random() * (canvas.width - bonusRadius * 2),
+        y: -bonusRadius * (index * 2 + 1),
+        speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
+      });
+    }
+    lastBonusSpawnTime = currentTime;
+  }
+
   if (playerHitFlashFrames > 0) {
     playerHitFlashFrames -= 1;
   }
@@ -337,12 +374,38 @@ function gameLoop() {
     const touchesSea = obstacle.y + obstacleRadius >= roadTop;
     if (touchesPlayer || touchesSea) {
       if (touchesPlayer) {
+        lives = Math.max(0, lives - 1);
         playerHitFlashFrames = playerHitFlashDuration;
       }
       createExplosion(obstacle.x, obstacle.y);
       resetObstacle(obstacle);
     }
   });
+
+  // 목숨 회복 원을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
+  for (let index = bonusObstacles.length - 1; index >= 0; index -= 1) {
+    const bonus = bonusObstacles[index];
+    bonus.y += bonus.speedY;
+
+    const closestX = Math.max(playerX, Math.min(bonus.x, playerX + playerWidth));
+    const closestY = Math.max(playerY, Math.min(bonus.y, playerY + playerHeight));
+    const distanceX = bonus.x - closestX;
+    const distanceY = bonus.y - closestY;
+    const touchesPlayer =
+      distanceX * distanceX + distanceY * distanceY <= bonusRadius * bonusRadius;
+
+    if (touchesPlayer) {
+      lives += 1;
+      healEffects.push({
+        x: playerX + playerWidth / 2,
+        y: playerY + playerHeight / 2,
+        age: 0,
+      });
+      bonusObstacles.splice(index, 1);
+    } else if (bonus.y + bonusRadius >= roadTop) {
+      bonusObstacles.splice(index, 1);
+    }
+  }
 
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
   explosions.forEach((explosion) => {
@@ -356,6 +419,14 @@ function gameLoop() {
   for (let index = explosions.length - 1; index >= 0; index -= 1) {
     if (explosions[index].age >= explosionDuration) {
       explosions.splice(index, 1);
+    }
+  }
+  healEffects.forEach((effect) => {
+    effect.age += 1;
+  });
+  for (let index = healEffects.length - 1; index >= 0; index -= 1) {
+    if (healEffects[index].age >= healEffectDuration) {
+      healEffects.splice(index, 1);
     }
   }
 
@@ -386,10 +457,18 @@ function gameLoop() {
     ctx.fill();
   });
 
+  ctx.fillStyle = "#20c957";
+  bonusObstacles.forEach((bonus) => {
+    ctx.beginPath();
+    ctx.arc(bonus.x, bonus.y, bonusRadius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
   drawPlayer();
 
   // 그리기: 충돌 지점에 퍼져 나가는 고리와 불꽃 파편을 그립니다.
   drawExplosions();
+  drawHealEffects();
 
   ctx.fillStyle = "red";
   ctx.font = "26px sans-serif";
