@@ -14,6 +14,14 @@ let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면
 let playerVelocityY = 0; // 플레이어의 세로 이동 속도입니다.
 let isOnGround = true; // 플레이어가 바닥에 있는지 저장합니다.
 const keys = {}; // 눌린 키의 현재 상태를 저장합니다.
+const controlKeyMap = {
+  ArrowLeft: "ArrowLeft",
+  ArrowRight: "ArrowRight",
+  ArrowUp: "ArrowUp",
+  a: "ArrowLeft",
+  d: "ArrowRight",
+  w: "ArrowUp",
+}; // WASD 입력을 방향키와 같은 조작으로 연결합니다.
 const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
@@ -323,28 +331,31 @@ function gameLoop() {
 requestAnimationFrame(gameLoop);
 
 document.addEventListener("keydown", (event) => {
-  if (
-    event.key === "ArrowLeft" ||
-    event.key === "ArrowRight" ||
-    event.key === "ArrowUp"
-  ) {
-    if (event.key === "ArrowUp" && !keys.ArrowUp && isOnGround) {
+  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
+  if (controlKey) {
+    if (controlKey === "ArrowUp" && !keys.ArrowUp && isOnGround) {
       playerVelocityY = -jumpStrength;
       isOnGround = false;
     }
-    keys[event.key] = true; // 좌우 및 위 방향키를 누르고 있는 상태를 저장합니다.
+    keys[controlKey] = true; // 방향키와 WASD의 눌림 상태를 저장합니다.
+    event.preventDefault();
   }
-  if (event.key.startsWith("Arrow") || event.key === " ") {
-    event.preventDefault(); // 방향키와 스페이스바의 페이지 스크롤을 막습니다.
+  if (event.key === " ") {
+    if (!keys.Space && isOnGround) {
+      playerVelocityY = -jumpStrength;
+      isOnGround = false;
+    }
+    keys.Space = true; // 스페이스바를 누른 상태를 저장합니다.
+    event.preventDefault(); // 스페이스바의 페이지 스크롤을 막습니다.
   }
 });
 
 document.addEventListener("keyup", (event) => {
-  if (
-    event.key === "ArrowLeft" ||
-    event.key === "ArrowRight" ||
-    event.key === "ArrowUp"
-  ) {
-    keys[event.key] = false; // 좌우 및 위 방향키에서 손을 뗀 상태를 저장합니다.
+  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
+  if (controlKey) {
+    keys[controlKey] = false; // 방향키와 WASD에서 손을 뗀 상태를 저장합니다.
+  }
+  if (event.key === " ") {
+    keys.Space = false; // 스페이스바에서 손을 뗀 상태를 저장합니다.
   }
 });
