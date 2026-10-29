@@ -6,13 +6,53 @@ const roadHeight = 75; // 화면 아래쪽 회색 바다의 높이입니다.
 const roadTop = canvas.height - roadHeight; // 회색 바다가 시작되는 높이입니다.
 const playerWidth = 32; // 플레이어 사각형의 가로 크기입니다.
 const playerHeight = playerWidth * 1.5; // 플레이어의 세로 크기를 가로의 1.5배로 설정합니다.
+const playerPixelSize = 4; // 도트 캐릭터 한 칸의 크기입니다.
+const playerSprite = [
+  "..HHHH..",
+  ".HHHHHH.",
+  ".HSSSS..",
+  ".HSESSS.",
+  "..SSSS..",
+  "...YY...",
+  ".TTYYTT.",
+  "TTTTTTTT",
+  ".TTTTTT.",
+  ".TT..TT.",
+  ".BB..BB.",
+  "BBB..BBB",
+]; // 청록색 옷과 노란 목도리를 한 오리지널 도트 캐릭터입니다.
+const playerJumpSprite = [
+  "..HHHH..",
+  ".HHHHHH.",
+  ".HSSSS..",
+  ".HSESSS.",
+  "..SSSS..",
+  ".T.YY.T.",
+  "TTTYYTTT",
+  ".TTTTTT.",
+  "..TTTT..",
+  "..T..T..",
+  ".BB..BB.",
+  ".BB..BB.",
+]; // 공중에서는 팔과 다리를 벌린 점프 포즈를 사용합니다.
+const playerColors = {
+  H: "#263238",
+  S: "#f2c08b",
+  E: "#263238",
+  T: "#168c83",
+  Y: "#f2c744",
+  B: "#594236",
+};
 const playerSpeed = 5; // 플레이어가 한 프레임에 이동하는 픽셀 수입니다.
 const gravity = 0.5; // 매 프레임 세로 속도에 더하는 중력입니다.
 const jumpStrength = 12; // 점프할 때 적용하는 위쪽 속도의 크기입니다.
+const playerHitFlashDuration = 60; // 장애물에 맞은 뒤 깜빡이는 프레임 수입니다.
 let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
 let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
+let playerFacing = 1; // 1은 오른쪽, -1은 왼쪽을 바라보는 방향입니다.
 let playerVelocityY = 0; // 플레이어의 세로 이동 속도입니다.
 let isOnGround = true; // 플레이어가 바닥에 있는지 저장합니다.
+let playerHitFlashFrames = 0; // 장애물에 맞은 뒤 남은 깜빡임 시간입니다.
 const keys = {}; // 눌린 키의 현재 상태를 저장합니다.
 const controlKeyMap = {
   ArrowLeft: "ArrowLeft",
@@ -58,6 +98,35 @@ function drawCloud(cloud) {
   ctx.arc(cloud.x + cloudWidth * 0.25, centerY, puffRadius, 0, Math.PI * 2);
   ctx.arc(cloud.x, centerY + puffRadius * 0.25, puffRadius * 1.2, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawPlayer() {
+  if (playerHitFlashFrames > 0 && Math.floor(playerHitFlashFrames / 5) % 2 === 0) {
+    return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
+  }
+
+  const sprite = isOnGround ? playerSprite : playerJumpSprite;
+  ctx.save();
+  ctx.translate(
+    playerX + (playerFacing === -1 ? playerWidth : 0),
+    playerY,
+  );
+  ctx.scale(playerFacing, 1);
+
+  sprite.forEach((row, y) => {
+    [...row].forEach((pixel, x) => {
+      if (pixel !== ".") {
+        ctx.fillStyle = playerColors[pixel];
+        ctx.fillRect(
+          x * playerPixelSize,
+          y * playerPixelSize,
+          playerPixelSize,
+          playerPixelSize,
+        );
+      }
+    });
+  });
+  ctx.restore();
 }
 
 function drawSchool() {
@@ -227,8 +296,15 @@ function drawExplosions() {
 }
 
 function gameLoop() {
+  if (playerHitFlashFrames > 0) {
+    playerHitFlashFrames -= 1;
+  }
+
   // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
   const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
+  if (moveX !== 0) {
+    playerFacing = moveX;
+  }
   playerX = Math.max(
     0,
     Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
@@ -255,10 +331,14 @@ function gameLoop() {
     const distanceX = obstacle.x - closestX;
     const distanceY = obstacle.y - closestY;
     const touchesPlayer =
+      playerHitFlashFrames === 0 &&
       distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
 
     const touchesSea = obstacle.y + obstacleRadius >= roadTop;
     if (touchesPlayer || touchesSea) {
+      if (touchesPlayer) {
+        playerHitFlashFrames = playerHitFlashDuration;
+      }
       createExplosion(obstacle.x, obstacle.y);
       resetObstacle(obstacle);
     }
@@ -306,8 +386,7 @@ function gameLoop() {
     ctx.fill();
   });
 
-  ctx.fillStyle = "blue";
-  ctx.fillRect(playerX, playerY, playerWidth, playerHeight);
+  drawPlayer();
 
   // 그리기: 충돌 지점에 퍼져 나가는 고리와 불꽃 파편을 그립니다.
   drawExplosions();
