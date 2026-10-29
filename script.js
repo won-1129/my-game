@@ -64,6 +64,12 @@ const controlKeyMap = {
 }; // WASD 입력을 방향키와 같은 조작으로 연결합니다.
 const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
+const obstacleIncreaseInterval = 10; // 장애물이 하나씩 늘어나는 점수 간격(초)입니다.
+const obstacleSpeedIncreaseInterval = 60; // 장애물 속도가 증가하는 간격(초)입니다.
+const obstacleSpeedIncrease = 0.5; // 간격마다 더할 낙하 속도입니다.
+const fastObstacleUnlockInterval = 30; // 빠른 장애물 출현량이 늘어나는 간격(초)입니다.
+const fastObstacleSpawnInterval = 10; // 빠른 장애물 출현 주기(초)입니다.
+const fastObstacleSpeed = 8; // 빠른 장애물의 낙하 속도입니다.
 const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
 const obstacleMaxSpeed = 4; // 장애물의 최대 낙하 속도입니다.
 const recoveryItemRadius = 10; // 회복 아이템의 반지름입니다.
@@ -82,8 +88,10 @@ const obstacles = Array.from({ length: obstacleCount }, () => ({
   y: Math.random() * canvas.height * 0.55,
   speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
 })); // 장애물마다 위치와 아래로 떨어지는 속도를 저장합니다.
+const fastObstacles = []; // 빠르게 떨어지는 빨간 장애물을 저장합니다.
 const recoveryItems = []; // 화면에 떨어지는 회복 아이템을 저장합니다.
 let lastRecoveryItemSpawnTime = performance.now(); // 마지막 회복 아이템 생성 시각입니다.
+let nextFastObstacleSpawnTime = 0; // 다음 빠른 장애물 출현 시각입니다.
 const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니다.
 const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
 const healEffectDuration = 36; // 회복 효과가 유지되는 프레임 수입니다.
@@ -106,7 +114,10 @@ function resetGame() {
   lives = 3;
   score = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
+  nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
   lastRecoveryItemSpawnTime = performance.now();
+  obstacles.length = obstacleCount; // 추가된 장애물을 제거해 처음 개수로 되돌립니다.
+  fastObstacles.length = 0;
   recoveryItems.length = 0;
   explosions.length = 0;
   healEffects.length = 0;
@@ -357,8 +368,33 @@ function gameLoop() {
 
   if (gameState === "playing") {
     score = Math.floor((Date.now() - startTime) / 1000);
-    const currentTime = performance.now();
-    if (currentTime - lastRecoveryItemSpawnTime >= recoveryItemSpawnInterval) {
+    const targetObstacleCount =
+      obstacleCount + Math.floor(score / obstacleIncreaseInterval);
+    while (obstacles.length < targetObstacleCount) {
+      obstacles.push({
+        x: obstacleRadius + Math.random() * (canvas.width - obstacleRadius * 2),
+        y: -obstacleRadius,
+        speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
+      });
+    }
+    const currentTime = Date.now();
+    while (currentTime >= nextFastObstacleSpawnTime) {
+      const unlockedFastObstacleCount = Math.floor(
+        (nextFastObstacleSpawnTime - startTime) /
+          (fastObstacleUnlockInterval * 1000),
+      );
+      for (let index = 0; index < unlockedFastObstacleCount; index += 1) {
+        fastObstacles.push({
+          x: obstacleRadius + Math.random() * (canvas.width - obstacleRadius * 2),
+          y: -obstacleRadius,
+          speedY: fastObstacleSpeed,
+        });
+      }
+      nextFastObstacleSpawnTime += fastObstacleSpawnInterval * 1000;
+    }
+
+    const currentPerformanceTime = performance.now();
+    if (currentPerformanceTime - lastRecoveryItemSpawnTime >= recoveryItemSpawnInterval) {
       for (let index = 0; index < recoveryItemSpawnCount; index += 1) {
         recoveryItems.push({
           x: recoveryItemRadius + Math.random() * (canvas.width - recoveryItemRadius * 2),
@@ -366,7 +402,7 @@ function gameLoop() {
           speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
         });
       }
-      lastRecoveryItemSpawnTime = currentTime;
+      lastRecoveryItemSpawnTime = currentPerformanceTime;
     }
 
     if (playerHitFlashFrames > 0) {
@@ -398,7 +434,9 @@ function gameLoop() {
         return;
       }
 
-      obstacle.y += obstacle.speedY;
+      const speedIncrease =
+        Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
+      obstacle.y += obstacle.speedY + speedIncrease;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -422,6 +460,39 @@ function gameLoop() {
         resetObstacle(obstacle);
       }
     });
+
+    // 빠른 장애물을 이동시키고, 닿으면 목숨을 줄입니다.
+    for (let index = fastObstacles.length - 1; index >= 0; index -= 1) {
+      if (gameState !== "playing") {
+        break;
+      }
+
+      const obstacle = fastObstacles[index];
+      obstacle.y += obstacle.speedY;
+
+      const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
+      const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
+      const distanceX = obstacle.x - closestX;
+      const distanceY = obstacle.y - closestY;
+      const touchesPlayer =
+        playerHitFlashFrames === 0 &&
+        distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
+
+      if (touchesPlayer) {
+        lives = Math.max(0, lives - 1);
+        playerHitFlashFrames = playerHitFlashDuration;
+        if (lives === 0) {
+          score = Math.floor((Date.now() - startTime) / 1000);
+          gameState = "gameover";
+        }
+        createExplosion(obstacle.x, obstacle.y);
+      } else if (obstacle.y + obstacleRadius >= roadTop) {
+        createExplosion(obstacle.x, obstacle.y);
+      }
+      if (touchesPlayer || obstacle.y + obstacleRadius >= roadTop) {
+        fastObstacles.splice(index, 1);
+      }
+    }
 
     // 회복 아이템을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
     for (
@@ -501,6 +572,11 @@ function gameLoop() {
 
   ctx.fillStyle = "red";
   obstacles.forEach((obstacle) => {
+    ctx.beginPath();
+    ctx.arc(obstacle.x, obstacle.y, obstacleRadius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  fastObstacles.forEach((obstacle) => {
     ctx.beginPath();
     ctx.arc(obstacle.x, obstacle.y, obstacleRadius, 0, Math.PI * 2);
     ctx.fill();
