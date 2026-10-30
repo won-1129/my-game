@@ -100,6 +100,8 @@ let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let score = 0; // 현재까지 버틴 시간 점수입니다.
 let gameState = "playing"; // 게임 진행 상태를 저장합니다.
 let lastFrameTime = 0; // 이전 프레임의 시간입니다.
+let pauseStartTime = 0; // 일시정지 시작 시각입니다.
+let pauseStartPerf = 0; // 일시정지 시작 고정밀 시각입니다.
 const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
 skyGradient.addColorStop(1, "#d8f1ff");
@@ -117,6 +119,8 @@ function resetGame() {
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
   nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
   lastRecoveryItemSpawnTime = performance.now();
+  pauseStartTime = 0;
+  pauseStartPerf = 0;
   lastFrameTime = 0;
   obstacles.length = obstacleCount; // 추가된 장애물을 제거해 처음 개수로 되돌립니다.
   fastObstacles.length = 0;
@@ -620,6 +624,19 @@ function gameLoop(timestamp) {
   ctx.font = "20px sans-serif";
   ctx.fillText(`점수: ${score}`, 18, 68);
 
+  if (gameState === "paused") {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "white";
+    ctx.font = "bold 44px sans-serif";
+    ctx.fillText("일시정지", canvas.width / 2, canvas.height / 2 - 15);
+    ctx.font = "18px sans-serif";
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillText("ESC 키를 눌러 계속하기", canvas.width / 2, canvas.height / 2 + 30);
+    ctx.textAlign = "start";
+  }
+
   if (gameState === "gameover") {
     ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -641,6 +658,36 @@ resetGame();
 requestAnimationFrame(gameLoop);
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (gameState === "playing") {
+      gameState = "paused";
+      pauseStartTime = Date.now();
+      pauseStartPerf = performance.now();
+      Object.keys(keys).forEach((key) => {
+        keys[key] = false;
+      });
+      event.preventDefault();
+      return;
+    }
+    if (gameState === "paused") {
+      const pauseDuration = Date.now() - pauseStartTime;
+      startTime += pauseDuration;
+      nextFastObstacleSpawnTime += pauseDuration;
+      const pausePerfDuration = performance.now() - pauseStartPerf;
+      lastRecoveryItemSpawnTime += pausePerfDuration;
+      lastFrameTime = 0;
+      gameState = "playing";
+      event.preventDefault();
+      return;
+    }
+  }
+
+  if (gameState === "paused") {
+    if (event.key.startsWith("Arrow") || event.key === " ") {
+      event.preventDefault();
+    }
+    return;
+  }
   if (gameState === "gameover") {
     if (event.key.toLowerCase() === "r" && !event.repeat) {
       resetGame();
