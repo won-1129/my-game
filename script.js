@@ -43,7 +43,7 @@ const playerColors = {
   Y: "#f2c744",
   B: "#594236",
 };
-const playerSpeed = 5; // 플레이어가 한 프레임에 이동하는 픽셀 수입니다.
+const playerSpeed = 5; // 60FPS 기준 한 프레임에 이동하는 픽셀 수입니다.
 const gravity = 0.5; // 매 프레임 세로 속도에 더하는 중력입니다.
 const jumpStrength = 12; // 점프할 때 적용하는 위쪽 속도의 크기입니다.
 const playerHitFlashDuration = 60; // 장애물에 맞은 뒤 깜빡이는 프레임 수입니다.
@@ -99,6 +99,7 @@ let lives = 3; // 남은 목숨 수를 저장합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let score = 0; // 현재까지 버틴 시간 점수입니다.
 let gameState = "playing"; // 게임 진행 상태를 저장합니다.
+let lastFrameTime = 0; // 이전 프레임의 시간입니다.
 const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
 skyGradient.addColorStop(1, "#d8f1ff");
@@ -116,6 +117,7 @@ function resetGame() {
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
   nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
   lastRecoveryItemSpawnTime = performance.now();
+  lastFrameTime = 0;
   obstacles.length = obstacleCount; // 추가된 장애물을 제거해 처음 개수로 되돌립니다.
   fastObstacles.length = 0;
   recoveryItems.length = 0;
@@ -362,7 +364,13 @@ function drawHealEffects() {
   ctx.textAlign = "start";
 }
 
-function gameLoop() {
+function gameLoop(timestamp) {
+  const frameScale =
+    lastFrameTime === 0
+      ? 1
+      : Math.min((timestamp - lastFrameTime) / (1000 / 60), 3);
+  lastFrameTime = timestamp;
+
   // 게임 상태와 관계없이 매 프레임 화면을 새로 그립니다.
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -406,7 +414,10 @@ function gameLoop() {
     }
 
     if (playerHitFlashFrames > 0) {
-      playerHitFlashFrames -= 1;
+      playerHitFlashFrames -= frameScale;
+      if (playerHitFlashFrames < 0) {
+        playerHitFlashFrames = 0;
+      }
     }
 
     // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
@@ -416,12 +427,15 @@ function gameLoop() {
     }
     playerX = Math.max(
       0,
-      Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
+      Math.min(
+        canvas.width - playerWidth,
+        playerX + moveX * playerSpeed * frameScale,
+      ),
     );
 
     // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
-    playerVelocityY += gravity;
-    playerY += playerVelocityY;
+    playerVelocityY += gravity * frameScale;
+    playerY += playerVelocityY * frameScale;
     if (playerY + playerHeight >= roadTop) {
       playerY = roadTop - playerHeight;
       playerVelocityY = 0;
@@ -436,7 +450,7 @@ function gameLoop() {
 
       const speedIncrease =
         Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
-      obstacle.y += obstacle.speedY + speedIncrease;
+      obstacle.y += (obstacle.speedY + speedIncrease) * frameScale;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -468,7 +482,7 @@ function gameLoop() {
       }
 
       const obstacle = fastObstacles[index];
-      obstacle.y += obstacle.speedY;
+      obstacle.y += obstacle.speedY * frameScale;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -501,7 +515,7 @@ function gameLoop() {
       index -= 1
     ) {
       const recoveryItem = recoveryItems[index];
-      recoveryItem.y += recoveryItem.speedY;
+      recoveryItem.y += recoveryItem.speedY * frameScale;
 
       const closestX = Math.max(playerX, Math.min(recoveryItem.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(recoveryItem.y, playerY + playerHeight));
@@ -528,11 +542,11 @@ function gameLoop() {
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
   if (gameState === "playing") {
     explosions.forEach((explosion) => {
-      explosion.age += 1;
+      explosion.age += frameScale;
       explosion.particles.forEach((particle) => {
-        particle.x += particle.speedX;
-        particle.y += particle.speedY;
-        particle.speedY += explosionGravity;
+        particle.x += particle.speedX * frameScale;
+        particle.y += particle.speedY * frameScale;
+        particle.speedY += explosionGravity * frameScale;
       });
     });
     for (let index = explosions.length - 1; index >= 0; index -= 1) {
@@ -541,7 +555,7 @@ function gameLoop() {
       }
     }
     healEffects.forEach((effect) => {
-      effect.age += 1;
+      effect.age += frameScale;
     });
     for (let index = healEffects.length - 1; index >= 0; index -= 1) {
       if (healEffects[index].age >= healEffectDuration) {
@@ -552,7 +566,7 @@ function gameLoop() {
     // 구름은 플레이 중에만 천천히 움직입니다.
     clouds.forEach((cloud) => {
       const cloudWidth = canvas.width * cloud.size;
-      cloud.x += cloud.speedX;
+      cloud.x += cloud.speedX * frameScale;
       if (cloud.x - cloudWidth / 2 > canvas.width) {
         cloud.x = -cloudWidth / 2;
       }
