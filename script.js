@@ -43,10 +43,10 @@ const playerColors = {
   Y: "#f2c744",
   B: "#594236",
 };
-const playerSpeed = 5; // 60FPS 기준 한 프레임에 이동하는 픽셀 수입니다.
-const gravity = 0.5; // 매 프레임 세로 속도에 더하는 중력입니다.
-const jumpStrength = 12; // 점프할 때 적용하는 위쪽 속도의 크기입니다.
-const playerHitFlashDuration = 60; // 장애물에 맞은 뒤 깜빡이는 프레임 수입니다.
+const playerSpeed = 300; // 초당 이동 픽셀입니다.
+const gravity = 1800; // 초당 세로 속도에 더하는 중력입니다.
+const jumpStrength = 720; // 점프할 때 적용하는 초당 위쪽 속도입니다.
+const playerHitFlashDuration = 1; // 장애물에 맞은 뒤 깜빡이는 시간(초)입니다.
 let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
 let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
 let playerFacing = 1; // 1은 오른쪽, -1은 왼쪽을 바라보는 방향입니다.
@@ -66,23 +66,23 @@ const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleIncreaseInterval = 10; // 장애물이 하나씩 늘어나는 점수 간격(초)입니다.
 const obstacleSpeedIncreaseInterval = 60; // 장애물 속도가 증가하는 간격(초)입니다.
-const obstacleSpeedIncrease = 0.5; // 간격마다 더할 낙하 속도입니다.
+const obstacleSpeedIncrease = 30; // 간격마다 더할 초당 낙하 속도입니다.
 const fastObstacleUnlockInterval = 30; // 빠른 장애물 출현량이 늘어나는 간격(초)입니다.
 const fastObstacleSpawnInterval = 10; // 빠른 장애물 출현 주기(초)입니다.
-const fastObstacleSpeed = 8; // 빠른 장애물의 낙하 속도입니다.
-const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
-const obstacleMaxSpeed = 4; // 장애물의 최대 낙하 속도입니다.
+const fastObstacleSpeed = 480; // 빠른 장애물의 초당 낙하 속도입니다.
+const obstacleMinSpeed = 90; // 장애물의 최소 초당 낙하 속도입니다.
+const obstacleMaxSpeed = 240; // 장애물의 최대 초당 낙하 속도입니다.
 const recoveryItemRadius = 10; // 회복 아이템의 반지름입니다.
 const recoveryItemSpawnInterval = 5000; // 회복 아이템 생성 간격(밀리초)입니다.
 const recoveryItemSpawnCount = 2; // 한 번에 생성하는 회복 아이템 개수입니다.
 const clouds = [
-  { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 0.22 },
-  { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 0.16 },
-  { x: canvas.width * 0.88, y: canvas.height * 0.1, size: 0.14, speedX: 0.2 },
+  { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 13.2 },
+  { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 9.6 },
+  { x: canvas.width * 0.88, y: canvas.height * 0.1, size: 0.14, speedX: 12 },
 ]; // 구름의 위치, 크기와 천천히 움직이는 속도입니다.
 const explosionParticleCount = 12; // 한 번 터질 때 흩어지는 파편 수입니다.
-const explosionDuration = 28; // 폭발 효과가 유지되는 프레임 수입니다.
-const explosionGravity = 0.12; // 폭발 파편에 적용되는 아래 방향 중력입니다.
+const explosionDuration = 28 / 60; // 폭발 효과가 유지되는 시간입니다.
+const explosionGravity = 432; // 폭발 파편에 적용되는 초당 아래 방향 중력입니다.
 const obstacles = Array.from({ length: obstacleCount }, () => ({
   x: obstacleRadius + Math.random() * (canvas.width - obstacleRadius * 2),
   y: Math.random() * canvas.height * 0.55,
@@ -94,7 +94,7 @@ let lastRecoveryItemSpawnTime = performance.now(); // 마지막 회복 아이템
 let nextFastObstacleSpawnTime = 0; // 다음 빠른 장애물 출현 시각입니다.
 const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니다.
 const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
-const healEffectDuration = 36; // 회복 효과가 유지되는 프레임 수입니다.
+const healEffectDuration = 36 / 60; // 회복 효과가 유지되는 시간입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let score = 0; // 현재까지 버틴 시간 점수입니다.
@@ -151,7 +151,7 @@ function drawPlayer() {
   if (
     gameState === "playing" &&
     playerHitFlashFrames > 0 &&
-    Math.floor(playerHitFlashFrames / 5) % 2 === 0
+    Math.floor((1 - playerHitFlashFrames) * 10) % 2 === 0
   ) {
     return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
   }
@@ -319,8 +319,8 @@ function createExplosion(x, y) {
     return {
       x,
       y,
-      speedX: Math.cos(angle) * speed,
-      speedY: Math.sin(angle) * speed,
+      speedX: Math.cos(angle) * speed * 60,
+      speedY: Math.sin(angle) * speed * 60,
       size: 2 + Math.random() * 3,
       color: Math.random() < 0.5 ? "#ffd34e" : "#ff7043",
     };
@@ -365,10 +365,10 @@ function drawHealEffects() {
 }
 
 function gameLoop(timestamp) {
-  const frameScale =
+  const deltaSeconds =
     lastFrameTime === 0
-      ? 1
-      : Math.min((timestamp - lastFrameTime) / (1000 / 60), 3);
+      ? 1 / 60
+      : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
   lastFrameTime = timestamp;
 
   // 게임 상태와 관계없이 매 프레임 화면을 새로 그립니다.
@@ -414,7 +414,7 @@ function gameLoop(timestamp) {
     }
 
     if (playerHitFlashFrames > 0) {
-      playerHitFlashFrames -= frameScale;
+      playerHitFlashFrames -= deltaSeconds;
       if (playerHitFlashFrames < 0) {
         playerHitFlashFrames = 0;
       }
@@ -429,13 +429,13 @@ function gameLoop(timestamp) {
       0,
       Math.min(
         canvas.width - playerWidth,
-        playerX + moveX * playerSpeed * frameScale,
+        playerX + moveX * playerSpeed * deltaSeconds,
       ),
     );
 
     // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
-    playerVelocityY += gravity * frameScale;
-    playerY += playerVelocityY * frameScale;
+    playerVelocityY += gravity * deltaSeconds;
+    playerY += playerVelocityY * deltaSeconds;
     if (playerY + playerHeight >= roadTop) {
       playerY = roadTop - playerHeight;
       playerVelocityY = 0;
@@ -450,7 +450,7 @@ function gameLoop(timestamp) {
 
       const speedIncrease =
         Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
-      obstacle.y += (obstacle.speedY + speedIncrease) * frameScale;
+      obstacle.y += (obstacle.speedY + speedIncrease) * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -482,7 +482,7 @@ function gameLoop(timestamp) {
       }
 
       const obstacle = fastObstacles[index];
-      obstacle.y += obstacle.speedY * frameScale;
+      obstacle.y += obstacle.speedY * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -515,7 +515,7 @@ function gameLoop(timestamp) {
       index -= 1
     ) {
       const recoveryItem = recoveryItems[index];
-      recoveryItem.y += recoveryItem.speedY * frameScale;
+      recoveryItem.y += recoveryItem.speedY * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(recoveryItem.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(recoveryItem.y, playerY + playerHeight));
@@ -542,11 +542,11 @@ function gameLoop(timestamp) {
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
   if (gameState === "playing") {
     explosions.forEach((explosion) => {
-      explosion.age += frameScale;
+      explosion.age += deltaSeconds;
       explosion.particles.forEach((particle) => {
-        particle.x += particle.speedX * frameScale;
-        particle.y += particle.speedY * frameScale;
-        particle.speedY += explosionGravity * frameScale;
+        particle.x += particle.speedX * deltaSeconds;
+        particle.y += particle.speedY * deltaSeconds;
+        particle.speedY += explosionGravity * deltaSeconds;
       });
     });
     for (let index = explosions.length - 1; index >= 0; index -= 1) {
@@ -555,7 +555,7 @@ function gameLoop(timestamp) {
       }
     }
     healEffects.forEach((effect) => {
-      effect.age += frameScale;
+      effect.age += deltaSeconds;
     });
     for (let index = healEffects.length - 1; index >= 0; index -= 1) {
       if (healEffects[index].age >= healEffectDuration) {
@@ -566,7 +566,7 @@ function gameLoop(timestamp) {
     // 구름은 플레이 중에만 천천히 움직입니다.
     clouds.forEach((cloud) => {
       const cloudWidth = canvas.width * cloud.size;
-      cloud.x += cloud.speedX * frameScale;
+      cloud.x += cloud.speedX * deltaSeconds;
       if (cloud.x - cloudWidth / 2 > canvas.width) {
         cloud.x = -cloudWidth / 2;
       }
