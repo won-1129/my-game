@@ -530,12 +530,14 @@ function gameLoop(timestamp) {
         recoveryItemRadius * recoveryItemRadius;
 
       if (touchesPlayer) {
-        lives += 1;
-        healEffects.push({
-          x: playerX + playerWidth / 2,
-          y: playerY + playerHeight / 2,
-          age: 0,
-        });
+        if (lives < 3) {
+          lives += 1;
+          healEffects.push({
+            x: playerX + playerWidth / 2,
+            y: playerY + playerHeight / 2,
+            age: 0,
+          });
+        }
         recoveryItems.splice(index, 1);
       } else if (recoveryItem.y + recoveryItemRadius >= roadTop) {
         recoveryItems.splice(index, 1);
