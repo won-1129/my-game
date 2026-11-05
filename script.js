@@ -46,11 +46,13 @@ const playerColors = {
 const playerSpeed = 300; // 초당 이동 픽셀입니다.
 const gravity = 1800; // 초당 세로 속도에 더하는 중력입니다.
 const jumpStrength = 720; // 점프할 때 적용하는 초당 위쪽 속도입니다.
+const playerHitFlashDuration = 1; // 적과 충돌한 뒤 깜빡이며 보호되는 시간(초)입니다.
 let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
 let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
 let playerFacing = 1; // 1은 오른쪽, -1은 왼쪽을 바라보는 방향입니다.
 let playerVelocityY = 0; // 플레이어의 세로 이동 속도입니다.
 let isOnGround = true; // 플레이어가 바닥에 있는지 저장합니다.
+let playerHitFlashFrames = 0; // 충돌 후 깜빡이며 보호되는 시간이 얼마나 남았는지 저장합니다.
 const keys = {}; // 눌린 키의 현재 상태를 저장합니다.
 const controlKeyMap = {
   ArrowLeft: "ArrowLeft",
@@ -112,6 +114,7 @@ function resetGame() {
   playerFacing = 1;
   playerVelocityY = 0;
   isOnGround = true;
+  playerHitFlashFrames = 0;
   lives = 3;
   score = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
@@ -150,6 +153,14 @@ function drawCloud(cloud) {
 }
 
 function drawPlayer() {
+  if (
+    gameState === "playing" &&
+    playerHitFlashFrames > 0 &&
+    Math.floor((1 - playerHitFlashFrames) * 10) % 2 === 0
+  ) {
+    return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
+  }
+
   const sprite = isOnGround ? playerSprite : playerJumpSprite;
   ctx.save();
   ctx.translate(
@@ -434,6 +445,10 @@ function gameLoop(timestamp) {
       lastRecoveryItemSpawnTime = currentPerformanceTime;
     }
 
+    if (playerHitFlashFrames > 0) {
+      playerHitFlashFrames = Math.max(0, playerHitFlashFrames - deltaSeconds);
+    }
+
     // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
     const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
     if (moveX !== 0) {
@@ -456,29 +471,17 @@ function gameLoop(timestamp) {
       isOnGround = true;
     }
 
-    // 일반 장애물을 아래로 움직이고, 바닥에 닿으면 다시 위로 보냅니다.
+    // 일반 장애물을 아래로 이동합니다.
     obstacles.forEach((obstacle) => {
       const speedIncrease =
         Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
       obstacle.y += (obstacle.speedY + speedIncrease) * deltaSeconds;
-
-      const touchesSea = obstacle.y + obstacleRadius >= roadTop;
-      if (touchesSea) {
-        createExplosion(obstacle.x, obstacle.y);
-        resetObstacle(obstacle);
-      }
     });
 
-    // 빠른 장애물을 이동시키고 바닥에 닿으면 제거합니다.
-    for (let index = fastObstacles.length - 1; index >= 0; index -= 1) {
-      const obstacle = fastObstacles[index];
+    // 빠른 장애물도 이동한 뒤 충돌 여부를 확인합니다.
+    fastObstacles.forEach((obstacle) => {
       obstacle.y += obstacle.speedY * deltaSeconds;
-
-      if (obstacle.y + obstacleRadius >= roadTop) {
-        createExplosion(obstacle.x, obstacle.y);
-        fastObstacles.splice(index, 1);
-      }
-    }
+    });
 
     // 일반 적과 빠른 적을 enemies 배열로 모아 사각형 충돌을 확인합니다.
     const enemies = [...obstacles, ...fastObstacles];
@@ -489,10 +492,42 @@ function gameLoop(timestamp) {
       height: playerHeight,
     };
     enemies.forEach((enemy) => {
-      if (checkCollision(playerHitbox, getEnemyHitbox(enemy))) {
-        console.log("충돌!");
+      if (
+        gameState === "playing" &&
+        playerHitFlashFrames === 0 &&
+        checkCollision(playerHitbox, getEnemyHitbox(enemy))
+      ) {
+        lives = Math.max(0, lives - 1);
+        playerHitFlashFrames = playerHitFlashDuration;
+        createExplosion(enemy.x, enemy.y);
+
+        if (fastObstacles.includes(enemy)) {
+          fastObstacles.splice(fastObstacles.indexOf(enemy), 1);
+        } else {
+          resetObstacle(enemy);
+        }
+
+        if (lives === 0) {
+          score = Math.floor((Date.now() - startTime) / 1000);
+          gameState = "gameover";
+        }
       }
     });
+
+    // 충돌 검사가 끝난 뒤 바닥에 닿은 적을 재배치하거나 제거합니다.
+    obstacles.forEach((obstacle) => {
+      if (obstacle.y + obstacleRadius >= roadTop) {
+        createExplosion(obstacle.x, obstacle.y);
+        resetObstacle(obstacle);
+      }
+    });
+    for (let index = fastObstacles.length - 1; index >= 0; index -= 1) {
+      const obstacle = fastObstacles[index];
+      if (obstacle.y + obstacleRadius >= roadTop) {
+        createExplosion(obstacle.x, obstacle.y);
+        fastObstacles.splice(index, 1);
+      }
+    }
 
     // 회복 아이템을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
     for (
