@@ -43,10 +43,10 @@ const playerColors = {
   Y: "#f2c744",
   B: "#594236",
 };
-const playerSpeed = 5; // 플레이어가 한 프레임에 이동하는 픽셀 수입니다.
-const gravity = 0.5; // 매 프레임 세로 속도에 더하는 중력입니다.
-const jumpStrength = 12; // 점프할 때 적용하는 위쪽 속도의 크기입니다.
-const playerHitFlashDuration = 60; // 장애물에 맞은 뒤 깜빡이는 프레임 수입니다.
+const playerSpeed = 300; // 초당 이동 픽셀입니다.
+const gravity = 1800; // 초당 세로 속도에 더하는 중력입니다.
+const jumpStrength = 720; // 점프할 때 적용하는 초당 위쪽 속도입니다.
+const playerHitFlashDuration = 1; // 장애물에 맞은 뒤 깜빡이는 시간(초)입니다.
 let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
 let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
 let playerFacing = 1; // 1은 오른쪽, -1은 왼쪽을 바라보는 방향입니다.
@@ -66,23 +66,23 @@ const obstacleRadius = 10; // 빨간 장애물 원의 반지름입니다.
 const obstacleCount = 9; // 화면에 나타날 장애물의 개수입니다.
 const obstacleIncreaseInterval = 10; // 장애물이 하나씩 늘어나는 점수 간격(초)입니다.
 const obstacleSpeedIncreaseInterval = 60; // 장애물 속도가 증가하는 간격(초)입니다.
-const obstacleSpeedIncrease = 0.5; // 간격마다 더할 낙하 속도입니다.
+const obstacleSpeedIncrease = 30; // 간격마다 더할 초당 낙하 속도입니다.
 const fastObstacleUnlockInterval = 30; // 빠른 장애물 출현량이 늘어나는 간격(초)입니다.
 const fastObstacleSpawnInterval = 10; // 빠른 장애물 출현 주기(초)입니다.
-const fastObstacleSpeed = 8; // 빠른 장애물의 낙하 속도입니다.
-const obstacleMinSpeed = 1.5; // 장애물의 최소 낙하 속도입니다.
-const obstacleMaxSpeed = 4; // 장애물의 최대 낙하 속도입니다.
+const fastObstacleSpeed = 480; // 빠른 장애물의 초당 낙하 속도입니다.
+const obstacleMinSpeed = 90; // 장애물의 최소 초당 낙하 속도입니다.
+const obstacleMaxSpeed = 240; // 장애물의 최대 초당 낙하 속도입니다.
 const recoveryItemRadius = 10; // 회복 아이템의 반지름입니다.
 const recoveryItemSpawnInterval = 5000; // 회복 아이템 생성 간격(밀리초)입니다.
 const recoveryItemSpawnCount = 2; // 한 번에 생성하는 회복 아이템 개수입니다.
 const clouds = [
-  { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 0.22 },
-  { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 0.16 },
-  { x: canvas.width * 0.88, y: canvas.height * 0.1, size: 0.14, speedX: 0.2 },
+  { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 13.2 },
+  { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 9.6 },
+  { x: canvas.width * 0.88, y: canvas.height * 0.1, size: 0.14, speedX: 12 },
 ]; // 구름의 위치, 크기와 천천히 움직이는 속도입니다.
 const explosionParticleCount = 12; // 한 번 터질 때 흩어지는 파편 수입니다.
-const explosionDuration = 28; // 폭발 효과가 유지되는 프레임 수입니다.
-const explosionGravity = 0.12; // 폭발 파편에 적용되는 아래 방향 중력입니다.
+const explosionDuration = 28 / 60; // 폭발 효과가 유지되는 시간입니다.
+const explosionGravity = 432; // 폭발 파편에 적용되는 초당 아래 방향 중력입니다.
 const obstacles = Array.from({ length: obstacleCount }, () => ({
   x: obstacleRadius + Math.random() * (canvas.width - obstacleRadius * 2),
   y: Math.random() * canvas.height * 0.55,
@@ -94,11 +94,14 @@ let lastRecoveryItemSpawnTime = performance.now(); // 마지막 회복 아이템
 let nextFastObstacleSpawnTime = 0; // 다음 빠른 장애물 출현 시각입니다.
 const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니다.
 const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
-const healEffectDuration = 36; // 회복 효과가 유지되는 프레임 수입니다.
+const healEffectDuration = 36 / 60; // 회복 효과가 유지되는 시간입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let score = 0; // 현재까지 버틴 시간 점수입니다.
 let gameState = "playing"; // 게임 진행 상태를 저장합니다.
+let lastFrameTime = 0; // 이전 프레임의 시간입니다.
+let pauseStartTime = 0; // 일시정지 시작 시각입니다.
+let pauseStartPerf = 0; // 일시정지 시작 고정밀 시각입니다.
 const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
 skyGradient.addColorStop(1, "#d8f1ff");
@@ -116,6 +119,9 @@ function resetGame() {
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
   nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
   lastRecoveryItemSpawnTime = performance.now();
+  pauseStartTime = 0;
+  pauseStartPerf = 0;
+  lastFrameTime = 0;
   obstacles.length = obstacleCount; // 추가된 장애물을 제거해 처음 개수로 되돌립니다.
   fastObstacles.length = 0;
   recoveryItems.length = 0;
@@ -149,7 +155,7 @@ function drawPlayer() {
   if (
     gameState === "playing" &&
     playerHitFlashFrames > 0 &&
-    Math.floor(playerHitFlashFrames / 5) % 2 === 0
+    Math.floor((1 - playerHitFlashFrames) * 10) % 2 === 0
   ) {
     return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
   }
@@ -317,8 +323,8 @@ function createExplosion(x, y) {
     return {
       x,
       y,
-      speedX: Math.cos(angle) * speed,
-      speedY: Math.sin(angle) * speed,
+      speedX: Math.cos(angle) * speed * 60,
+      speedY: Math.sin(angle) * speed * 60,
       size: 2 + Math.random() * 3,
       color: Math.random() < 0.5 ? "#ffd34e" : "#ff7043",
     };
@@ -362,7 +368,13 @@ function drawHealEffects() {
   ctx.textAlign = "start";
 }
 
-function gameLoop() {
+function gameLoop(timestamp) {
+  const deltaSeconds =
+    lastFrameTime === 0
+      ? 1 / 60
+      : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
+  lastFrameTime = timestamp;
+
   // 게임 상태와 관계없이 매 프레임 화면을 새로 그립니다.
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -406,7 +418,10 @@ function gameLoop() {
     }
 
     if (playerHitFlashFrames > 0) {
-      playerHitFlashFrames -= 1;
+      playerHitFlashFrames -= deltaSeconds;
+      if (playerHitFlashFrames < 0) {
+        playerHitFlashFrames = 0;
+      }
     }
 
     // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
@@ -416,12 +431,15 @@ function gameLoop() {
     }
     playerX = Math.max(
       0,
-      Math.min(canvas.width - playerWidth, playerX + moveX * playerSpeed),
+      Math.min(
+        canvas.width - playerWidth,
+        playerX + moveX * playerSpeed * deltaSeconds,
+      ),
     );
 
     // 중력으로 세로 속도를 바꾸고 플레이어의 높이를 갱신합니다.
-    playerVelocityY += gravity;
-    playerY += playerVelocityY;
+    playerVelocityY += gravity * deltaSeconds;
+    playerY += playerVelocityY * deltaSeconds;
     if (playerY + playerHeight >= roadTop) {
       playerY = roadTop - playerHeight;
       playerVelocityY = 0;
@@ -436,7 +454,7 @@ function gameLoop() {
 
       const speedIncrease =
         Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
-      obstacle.y += obstacle.speedY + speedIncrease;
+      obstacle.y += (obstacle.speedY + speedIncrease) * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -468,7 +486,7 @@ function gameLoop() {
       }
 
       const obstacle = fastObstacles[index];
-      obstacle.y += obstacle.speedY;
+      obstacle.y += obstacle.speedY * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
@@ -501,7 +519,7 @@ function gameLoop() {
       index -= 1
     ) {
       const recoveryItem = recoveryItems[index];
-      recoveryItem.y += recoveryItem.speedY;
+      recoveryItem.y += recoveryItem.speedY * deltaSeconds;
 
       const closestX = Math.max(playerX, Math.min(recoveryItem.x, playerX + playerWidth));
       const closestY = Math.max(playerY, Math.min(recoveryItem.y, playerY + playerHeight));
@@ -528,11 +546,11 @@ function gameLoop() {
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
   if (gameState === "playing") {
     explosions.forEach((explosion) => {
-      explosion.age += 1;
+      explosion.age += deltaSeconds;
       explosion.particles.forEach((particle) => {
-        particle.x += particle.speedX;
-        particle.y += particle.speedY;
-        particle.speedY += explosionGravity;
+        particle.x += particle.speedX * deltaSeconds;
+        particle.y += particle.speedY * deltaSeconds;
+        particle.speedY += explosionGravity * deltaSeconds;
       });
     });
     for (let index = explosions.length - 1; index >= 0; index -= 1) {
@@ -541,7 +559,7 @@ function gameLoop() {
       }
     }
     healEffects.forEach((effect) => {
-      effect.age += 1;
+      effect.age += deltaSeconds;
     });
     for (let index = healEffects.length - 1; index >= 0; index -= 1) {
       if (healEffects[index].age >= healEffectDuration) {
@@ -552,7 +570,7 @@ function gameLoop() {
     // 구름은 플레이 중에만 천천히 움직입니다.
     clouds.forEach((cloud) => {
       const cloudWidth = canvas.width * cloud.size;
-      cloud.x += cloud.speedX;
+      cloud.x += cloud.speedX * deltaSeconds;
       if (cloud.x - cloudWidth / 2 > canvas.width) {
         cloud.x = -cloudWidth / 2;
       }
@@ -606,6 +624,19 @@ function gameLoop() {
   ctx.font = "20px sans-serif";
   ctx.fillText(`점수: ${score}`, 18, 68);
 
+  if (gameState === "paused") {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "white";
+    ctx.font = "bold 44px sans-serif";
+    ctx.fillText("일시정지", canvas.width / 2, canvas.height / 2 - 15);
+    ctx.font = "18px sans-serif";
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillText("ESC 키를 눌러 계속하기", canvas.width / 2, canvas.height / 2 + 30);
+    ctx.textAlign = "start";
+  }
+
   if (gameState === "gameover") {
     ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -627,6 +658,36 @@ resetGame();
 requestAnimationFrame(gameLoop);
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (gameState === "playing") {
+      gameState = "paused";
+      pauseStartTime = Date.now();
+      pauseStartPerf = performance.now();
+      Object.keys(keys).forEach((key) => {
+        keys[key] = false;
+      });
+      event.preventDefault();
+      return;
+    }
+    if (gameState === "paused") {
+      const pauseDuration = Date.now() - pauseStartTime;
+      startTime += pauseDuration;
+      nextFastObstacleSpawnTime += pauseDuration;
+      const pausePerfDuration = performance.now() - pauseStartPerf;
+      lastRecoveryItemSpawnTime += pausePerfDuration;
+      lastFrameTime = 0;
+      gameState = "playing";
+      event.preventDefault();
+      return;
+    }
+  }
+
+  if (gameState === "paused") {
+    if (event.key.startsWith("Arrow") || event.key === " ") {
+      event.preventDefault();
+    }
+    return;
+  }
   if (gameState === "gameover") {
     if (event.key.toLowerCase() === "r" && !event.repeat) {
       resetGame();
