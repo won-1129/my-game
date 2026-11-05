@@ -46,13 +46,11 @@ const playerColors = {
 const playerSpeed = 300; // 초당 이동 픽셀입니다.
 const gravity = 1800; // 초당 세로 속도에 더하는 중력입니다.
 const jumpStrength = 720; // 점프할 때 적용하는 초당 위쪽 속도입니다.
-const playerHitFlashDuration = 1; // 장애물에 맞은 뒤 깜빡이는 시간(초)입니다.
 let playerX = (canvas.width - playerWidth) / 2; // 플레이어를 화면 가로 가운데에 둡니다.
 let playerY = roadTop - playerHeight; // 플레이어를 회색 바다의 윗면에 올려둡니다.
 let playerFacing = 1; // 1은 오른쪽, -1은 왼쪽을 바라보는 방향입니다.
 let playerVelocityY = 0; // 플레이어의 세로 이동 속도입니다.
 let isOnGround = true; // 플레이어가 바닥에 있는지 저장합니다.
-let playerHitFlashFrames = 0; // 장애물에 맞은 뒤 남은 깜빡임 시간입니다.
 const keys = {}; // 눌린 키의 현재 상태를 저장합니다.
 const controlKeyMap = {
   ArrowLeft: "ArrowLeft",
@@ -114,7 +112,6 @@ function resetGame() {
   playerFacing = 1;
   playerVelocityY = 0;
   isOnGround = true;
-  playerHitFlashFrames = 0;
   lives = 3;
   score = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
@@ -153,14 +150,6 @@ function drawCloud(cloud) {
 }
 
 function drawPlayer() {
-  if (
-    gameState === "playing" &&
-    playerHitFlashFrames > 0 &&
-    Math.floor((1 - playerHitFlashFrames) * 10) % 2 === 0
-  ) {
-    return; // 깜빡임 주기에 따라 플레이어를 잠시 그리지 않습니다.
-  }
-
   const sprite = isOnGround ? playerSprite : playerJumpSprite;
   ctx.save();
   ctx.translate(
@@ -369,11 +358,31 @@ function drawHealEffects() {
   ctx.textAlign = "start";
 }
 
-// 원형 장애물과 아이템의 충돌 판정 영역을 테두리로 그립니다.
+// 회복 아이템의 원형 충돌 판정 영역을 테두리로 그립니다.
 function drawCircleHitbox(x, y, radius) {
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.stroke();
+}
+
+// 두 사각형이 가로와 세로 방향 모두에서 겹치는지 확인합니다.
+function checkCollision(rectA, rectB) {
+  return (
+    rectA.x < rectB.x + rectB.width &&
+    rectA.x + rectA.width > rectB.x &&
+    rectA.y < rectB.y + rectB.height &&
+    rectA.y + rectA.height > rectB.y
+  );
+}
+
+// 원 중심과 반지름으로 적의 사각형 충돌 영역을 만듭니다.
+function getEnemyHitbox(enemy) {
+  return {
+    x: enemy.x - obstacleRadius,
+    y: enemy.y - obstacleRadius,
+    width: obstacleRadius * 2,
+    height: obstacleRadius * 2,
+  };
 }
 
 function gameLoop(timestamp) {
@@ -425,13 +434,6 @@ function gameLoop(timestamp) {
       lastRecoveryItemSpawnTime = currentPerformanceTime;
     }
 
-    if (playerHitFlashFrames > 0) {
-      playerHitFlashFrames -= deltaSeconds;
-      if (playerHitFlashFrames < 0) {
-        playerHitFlashFrames = 0;
-      }
-    }
-
     // 누른 좌우 방향키에 따라 플레이어를 이동합니다.
     const moveX = Number(Boolean(keys.ArrowRight)) - Number(Boolean(keys.ArrowLeft));
     if (moveX !== 0) {
@@ -454,71 +456,43 @@ function gameLoop(timestamp) {
       isOnGround = true;
     }
 
-    // 계산: 장애물을 아래로 움직이고, 플레이어와 닿으면 게임 오버 처리합니다.
+    // 일반 장애물을 아래로 움직이고, 바닥에 닿으면 다시 위로 보냅니다.
     obstacles.forEach((obstacle) => {
-      if (gameState !== "playing") {
-        return;
-      }
-
       const speedIncrease =
         Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
       obstacle.y += (obstacle.speedY + speedIncrease) * deltaSeconds;
 
-      const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
-      const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
-      const distanceX = obstacle.x - closestX;
-      const distanceY = obstacle.y - closestY;
-      const touchesPlayer =
-        playerHitFlashFrames === 0 &&
-        distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
-
       const touchesSea = obstacle.y + obstacleRadius >= roadTop;
-      if (touchesPlayer || touchesSea) {
-        if (touchesPlayer) {
-          lives = Math.max(0, lives - 1);
-          playerHitFlashFrames = playerHitFlashDuration;
-          if (lives === 0) {
-            score = Math.floor((Date.now() - startTime) / 1000);
-            gameState = "gameover";
-          }
-        }
+      if (touchesSea) {
         createExplosion(obstacle.x, obstacle.y);
         resetObstacle(obstacle);
       }
     });
 
-    // 빠른 장애물을 이동시키고, 닿으면 목숨을 줄입니다.
+    // 빠른 장애물을 이동시키고 바닥에 닿으면 제거합니다.
     for (let index = fastObstacles.length - 1; index >= 0; index -= 1) {
-      if (gameState !== "playing") {
-        break;
-      }
-
       const obstacle = fastObstacles[index];
       obstacle.y += obstacle.speedY * deltaSeconds;
 
-      const closestX = Math.max(playerX, Math.min(obstacle.x, playerX + playerWidth));
-      const closestY = Math.max(playerY, Math.min(obstacle.y, playerY + playerHeight));
-      const distanceX = obstacle.x - closestX;
-      const distanceY = obstacle.y - closestY;
-      const touchesPlayer =
-        playerHitFlashFrames === 0 &&
-        distanceX * distanceX + distanceY * distanceY <= obstacleRadius * obstacleRadius;
-
-      if (touchesPlayer) {
-        lives = Math.max(0, lives - 1);
-        playerHitFlashFrames = playerHitFlashDuration;
-        if (lives === 0) {
-          score = Math.floor((Date.now() - startTime) / 1000);
-          gameState = "gameover";
-        }
+      if (obstacle.y + obstacleRadius >= roadTop) {
         createExplosion(obstacle.x, obstacle.y);
-      } else if (obstacle.y + obstacleRadius >= roadTop) {
-        createExplosion(obstacle.x, obstacle.y);
-      }
-      if (touchesPlayer || obstacle.y + obstacleRadius >= roadTop) {
         fastObstacles.splice(index, 1);
       }
     }
+
+    // 일반 적과 빠른 적을 enemies 배열로 모아 사각형 충돌을 확인합니다.
+    const enemies = [...obstacles, ...fastObstacles];
+    const playerHitbox = {
+      x: playerX,
+      y: playerY,
+      width: playerWidth,
+      height: playerHeight,
+    };
+    enemies.forEach((enemy) => {
+      if (checkCollision(playerHitbox, getEnemyHitbox(enemy))) {
+        console.log("충돌!");
+      }
+    });
 
     // 회복 아이템을 아래로 내리고, 플레이어가 닿으면 목숨을 회복합니다.
     for (
@@ -619,16 +593,14 @@ function gameLoop(timestamp) {
 
   drawPlayer();
 
-  // 충돌 판정에 사용하는 플레이어, 장애물, 회복 아이템의 영역을 표시합니다.
+  // 충돌 판정에 사용하는 플레이어, 적, 회복 아이템의 영역을 표시합니다.
   if (showHitbox) {
     ctx.strokeStyle = "red";
     ctx.lineWidth = 1;
     ctx.strokeRect(playerX, playerY, playerWidth, playerHeight);
-    obstacles.forEach((obstacle) => {
-      drawCircleHitbox(obstacle.x, obstacle.y, obstacleRadius);
-    });
-    fastObstacles.forEach((obstacle) => {
-      drawCircleHitbox(obstacle.x, obstacle.y, obstacleRadius);
+    [...obstacles, ...fastObstacles].forEach((enemy) => {
+      const hitbox = getEnemyHitbox(enemy);
+      ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height);
     });
     recoveryItems.forEach((recoveryItem) => {
       drawCircleHitbox(recoveryItem.x, recoveryItem.y, recoveryItemRadius);
