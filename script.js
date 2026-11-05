@@ -96,6 +96,7 @@ const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니�
 const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
 const healEffectDuration = 36 / 60; // 회복 효과가 유지되는 시간입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
+let showHitbox = false; // true로 설정하면 충돌 판정 영역을 빨간 테두리로 표시합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let score = 0; // 현재까지 버틴 시간 점수입니다.
 let gameState = "playing"; // 게임 진행 상태를 저장합니다.
@@ -368,6 +369,13 @@ function drawHealEffects() {
   ctx.textAlign = "start";
 }
 
+// 원형 장애물과 아이템의 충돌 판정 영역을 테두리로 그립니다.
+function drawCircleHitbox(x, y, radius) {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 function gameLoop(timestamp) {
   const deltaSeconds =
     lastFrameTime === 0
@@ -610,6 +618,22 @@ function gameLoop(timestamp) {
   });
 
   drawPlayer();
+
+  // 충돌 판정에 사용하는 플레이어, 장애물, 회복 아이템의 영역을 표시합니다.
+  if (showHitbox) {
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(playerX, playerY, playerWidth, playerHeight);
+    obstacles.forEach((obstacle) => {
+      drawCircleHitbox(obstacle.x, obstacle.y, obstacleRadius);
+    });
+    fastObstacles.forEach((obstacle) => {
+      drawCircleHitbox(obstacle.x, obstacle.y, obstacleRadius);
+    });
+    recoveryItems.forEach((recoveryItem) => {
+      drawCircleHitbox(recoveryItem.x, recoveryItem.y, recoveryItemRadius);
+    });
+  }
 
   // 그리기: 충돌 지점에 퍼져 나가는 고리와 불꽃 파편을 그립니다.
   drawExplosions();
