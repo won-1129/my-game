@@ -79,6 +79,61 @@ const obstacleMaxSpeed = 240; // 장애물의 최대 초당 낙하 속도입니�
 const recoveryItemRadius = 10; // 회복 아이템의 반지름입니다.
 const recoveryItemSpawnInterval = 5000; // 회복 아이템 생성 간격(밀리초)입니다.
 const recoveryItemSpawnCount = 2; // 한 번에 생성하는 회복 아이템 개수입니다.
+const shieldItemRadius = 10; // 보호막 아이템의 반지름입니다.
+const shieldItemSpawnCount = 1; // 한 번에 생성하는 보호막 아이템 개수 (회복 아이템의 절반값)입니다.
+const shieldItemSpawnInterval = 10000; // 보호막 생성 간격 (출현 빈도를 절반으로 줄인 10초(10000밀리초)마다 1개씩 생성)입니다.
+
+// 60초 이후부터 30초마다 등장하는 지상 학생 장애물 설정입니다.
+const studentWidth = 56; // 학생 무리의 가로 크기입니다.
+const studentHeight = 44; // 학생 무리의 세로 크기 (점프해야만 피할 수 있는 높이)입니다.
+const studentPixelSize = 4; // 도트 크기입니다.
+const studentSpeed = 510; // 지상을 가로질러 달리는 초당 속도 (기존 340의 1.5배)입니다.
+const studentUnlockTime = 60; // 출현 시작 시각 (60초 이후)입니다.
+const studentInterval = 30; // 출현 주기 (30초마다)입니다.
+const studentWarningDuration = 1.3; // 출현 전 경고 표시 시간(초)입니다.
+const studentObstacles = []; // 현재 화면을 달리는 학생 장애물 목록입니다.
+let nextStudentSpawnTime = studentUnlockTime + 4 + Math.random() * 20; // 다음 학생 출현 시각(초)입니다.
+let pendingStudentDirection = Math.random() < 0.5 ? 1 : -1; // 1: 왼쪽->오른쪽, -1: 오른쪽->왼쪽
+
+// 학생 도트 스프라이트 색상 및 달리기 애니메이션 프레임입니다.
+const studentColors = {
+  H: "#263238", // 머리카락 (짙은 회색)
+  S: "#f2c08b", // 피부색
+  E: "#1a1a2e", // 눈
+  C: "#ffffff", // 교복 셔츠
+  N: "#1e3a5f", // 교복 자켓 (네이비)
+  B: "#d35400", // 책가방 (오렌지 브라운)
+  D: "#34495e", // 교복 바지 (슬랙스)
+  F: "#2c3e50", // 학생 신발
+};
+
+const studentSpriteFrame1 = [
+  "....HHH........HHH...",
+  "...HHHHH......HHHHH..",
+  "...HSSES......HSSES..",
+  "...SSSS.......SSSS...",
+  "..NCBNNN.....NCBNNN..",
+  "..NNNNNN.....NNNNNN..",
+  "...NNNN.......NNNN...",
+  "...DD.DD......D...D..",
+  "..DD...DD....DD...DD.",
+  "..FF...FF....FF...FF.",
+  ".....................",
+];
+
+const studentSpriteFrame2 = [
+  "....HHH........HHH...",
+  "...HHHHH......HHHHH..",
+  "...HSSES......HSSES..",
+  "...SSSS.......SSSS...",
+  "..NCBNNN.....NCBNNN..",
+  "..NNNNNN.....NNNNNN..",
+  "...NNNN.......NNNN...",
+  "..DD...DD.....DD.DD..",
+  ".DD.....DD...DD...DD.",
+  ".FF.....FF...FF...FF.",
+  ".....................",
+];
 const clouds = [
   { x: canvas.width * 0.15, y: canvas.height * 0.12, size: 0.12, speedX: 13.2 },
   { x: canvas.width * 0.58, y: canvas.height * 0.18, size: 0.1, speedX: 9.6 },
@@ -94,15 +149,21 @@ const obstacles = Array.from({ length: obstacleCount }, () => ({
 })); // 장애물마다 위치와 아래로 떨어지는 속도를 저장합니다.
 const fastObstacles = []; // 빠르게 떨어지는 빨간 장애물을 저장합니다.
 const recoveryItems = []; // 화면에 떨어지는 회복 아이템을 저장합니다.
+const shieldItems = []; // 화면에 떨어지는 회색 보호막 아이템을 저장합니다.
 let lastRecoveryItemSpawnTime = performance.now(); // 마지막 회복 아이템 생성 시각입니다.
+let lastShieldItemSpawnTime = performance.now(); // 마지막 보호막 아이템 생성 시각입니다.
 let nextFastObstacleSpawnTime = 0; // 다음 빠른 장애물 출현 시각입니다.
 const explosions = []; // 충돌할 때 생기는 폭발 효과를 저장합니다.
 const healEffects = []; // 목숨 회복 표시 효과를 저장합니다.
 const healEffectDuration = 36 / 60; // 회복 효과가 유지되는 시간입니다.
+const shieldEffects = []; // 보호막 획득 표시 효과를 저장합니다.
+const shieldEffectDuration = 36 / 60; // 보호막 효과가 유지되는 시간입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
+let shields = 0; // 플레이어가 보유한 보호막 개수입니다.
 let showHitbox = false; // true로 설정하면 충돌 판정 영역을 빨간 테두리로 표시합니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
-let score = 0; // 현재까지 버틴 시간 점수입니다.
+let elapsedSeconds = 0; // 진행 시간(초)입니다.
+let score = 0; // 최소 속도에 비례해 증가하는 게임 점수입니다.
 let gameState = "playing"; // 게임 진행 상태를 저장합니다.
 let lastFrameTime = 0; // 이전 프레임의 시간입니다.
 let pauseStartTime = 0; // 일시정지 시작 시각입니다.
@@ -120,18 +181,26 @@ function resetGame() {
   isOnGround = true;
   playerHitFlashFrames = 0;
   lives = 3;
+  shields = 0;
   score = 0;
+  elapsedSeconds = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
   nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
   lastRecoveryItemSpawnTime = performance.now();
+  lastShieldItemSpawnTime = performance.now();
   pauseStartTime = 0;
   pauseStartPerf = 0;
   lastFrameTime = 0;
   obstacles.length = obstacleCount; // 추가된 장애물을 제거해 처음 개수로 되돌립니다.
   fastObstacles.length = 0;
   recoveryItems.length = 0;
+  shieldItems.length = 0;
+  studentObstacles.length = 0;
+  nextStudentSpawnTime = studentUnlockTime + 4 + Math.random() * 20;
+  pendingStudentDirection = Math.random() < 0.5 ? 1 : -1;
   explosions.length = 0;
   healEffects.length = 0;
+  shieldEffects.length = 0;
   Object.keys(keys).forEach((key) => {
     keys[key] = false;
   });
@@ -168,8 +237,8 @@ function drawPlayer() {
   const sprite = isOnGround ? playerSprite : playerJumpSprite;
   ctx.save();
   ctx.translate(
-    playerX + (playerFacing === -1 ? playerWidth : 0),
-    playerY,
+    Math.round(playerX + (playerFacing === -1 ? playerWidth : 0)),
+    Math.round(playerY),
   );
   ctx.scale(playerFacing, 1);
 
@@ -187,6 +256,63 @@ function drawPlayer() {
     });
   });
   ctx.restore();
+}
+
+function drawStudents() {
+  studentObstacles.forEach((student) => {
+    const frame =
+      Math.floor(student.animTimer * 15) % 2 === 0
+        ? studentSpriteFrame1
+        : studentSpriteFrame2;
+    ctx.save();
+    ctx.translate(
+      Math.round(student.x + (student.direction === -1 ? student.width : 0)),
+      Math.round(student.y),
+    );
+    ctx.scale(student.direction, 1);
+
+    frame.forEach((row, y) => {
+      [...row].forEach((pixel, x) => {
+        if (pixel !== "." && studentColors[pixel]) {
+          ctx.fillStyle = studentColors[pixel];
+          ctx.fillRect(
+            x * studentPixelSize,
+            y * studentPixelSize,
+            studentPixelSize,
+            studentPixelSize,
+          );
+        }
+      });
+    });
+    ctx.restore();
+  });
+}
+
+function drawStudentWarning() {
+  if (gameState !== "playing") return;
+  const timeUntilSpawn = nextStudentSpawnTime - elapsedSeconds;
+  if (
+    elapsedSeconds >= studentUnlockTime - studentWarningDuration &&
+    timeUntilSpawn > 0 &&
+    timeUntilSpawn <= studentWarningDuration
+  ) {
+    const flash = Math.floor(timeUntilSpawn * 8) % 2 === 0;
+    if (flash) {
+      ctx.save();
+      const warningY = roadTop - studentHeight - 14;
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = pendingStudentDirection === 1 ? "left" : "right";
+      ctx.fillStyle = "#ffdd33";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+      ctx.shadowBlur = 6;
+      if (pendingStudentDirection === 1) {
+        ctx.fillText("▶▶ ⚠ 학생들 뛰어오는 중! (점프 준비)", 16, warningY);
+      } else {
+        ctx.fillText("(점프 준비) ⚠ 학생들 뛰어오는 중! ◀◀", canvas.width - 16, warningY);
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function drawSchool() {
@@ -373,6 +499,24 @@ function drawHealEffects() {
   ctx.textAlign = "start";
 }
 
+function drawShieldEffects() {
+  shieldEffects.forEach((effect) => {
+    const progress = effect.age / shieldEffectDuration;
+    ctx.globalAlpha = 1 - progress;
+    ctx.strokeStyle = "#90a4ae";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, 6 + progress * 24, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#b0bec5";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("+보호막", effect.x, effect.y - 12 - progress * 20);
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "start";
+}
+
 // 회복 아이템의 원형 충돌 판정 영역을 테두리로 그립니다.
 function drawCircleHitbox(x, y, radius) {
   ctx.beginPath();
@@ -411,9 +555,18 @@ function gameLoop(timestamp) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (gameState === "playing") {
-    score = Math.floor((Date.now() - startTime) / 1000);
+    elapsedSeconds = Math.max(0, (Date.now() - startTime) / 1000);
+
+    // 최소 속도 증가량 계산 (60초마다 30씩 증가)
+    const speedIncrease =
+      Math.floor(elapsedSeconds / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
+    const currentMinSpeed = obstacleMinSpeed + speedIncrease;
+    // 처음에는 초당 1점씩 증가하며, 최소 속도가 늘어날수록 점수 증가율도 비례하여 상승합니다.
+    const scoreMultiplier = currentMinSpeed / obstacleMinSpeed;
+    score += deltaSeconds * scoreMultiplier;
+
     const targetObstacleCount =
-      obstacleCount + Math.floor(score / obstacleIncreaseInterval);
+      obstacleCount + Math.floor(elapsedSeconds / obstacleIncreaseInterval);
     while (obstacles.length < targetObstacleCount) {
       obstacles.push({
         x: obstacleRadius + Math.random() * (canvas.width - obstacleRadius * 2),
@@ -449,6 +602,38 @@ function gameLoop(timestamp) {
       lastRecoveryItemSpawnTime = currentPerformanceTime;
     }
 
+    // 보호막 아이템은 출현 빈도를 줄여 10초마다 1개씩 생성됩니다.
+    if (currentPerformanceTime - lastShieldItemSpawnTime >= shieldItemSpawnInterval) {
+      for (let index = 0; index < shieldItemSpawnCount; index += 1) {
+        shieldItems.push({
+          x: shieldItemRadius + Math.random() * (canvas.width - shieldItemRadius * 2),
+          y: -shieldItemRadius * (index * 2 + 1),
+          speedY: obstacleMinSpeed + Math.random() * (obstacleMaxSpeed - obstacleMinSpeed),
+        });
+      }
+      lastShieldItemSpawnTime = currentPerformanceTime;
+    }
+
+    // 60초 이후부터 30초마다 랜덤한 시점에 지상 학생 장애물이 출현합니다.
+    if (elapsedSeconds >= nextStudentSpawnTime) {
+      studentObstacles.push({
+        x: pendingStudentDirection === 1 ? -studentWidth : canvas.width,
+        y: roadTop - studentHeight,
+        width: studentWidth,
+        height: studentHeight,
+        speedX: pendingStudentDirection === 1 ? studentSpeed : -studentSpeed,
+        direction: pendingStudentDirection,
+        animTimer: 0,
+        hit: false,
+      });
+
+      // 다음 30초 주기 내의 랜덤 출현 시점 예약
+      const periodIndex = Math.floor((elapsedSeconds - studentUnlockTime) / studentInterval);
+      const nextPeriodStart = studentUnlockTime + (periodIndex + 1) * studentInterval;
+      nextStudentSpawnTime = nextPeriodStart + 3 + Math.random() * 22;
+      pendingStudentDirection = Math.random() < 0.5 ? 1 : -1;
+    }
+
     if (playerHitFlashFrames > 0) {
       playerHitFlashFrames = Math.max(0, playerHitFlashFrames - deltaSeconds);
     }
@@ -477,8 +662,6 @@ function gameLoop(timestamp) {
 
     // 일반 장애물을 아래로 이동합니다.
     obstacles.forEach((obstacle) => {
-      const speedIncrease =
-        Math.floor(score / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
       obstacle.y += (obstacle.speedY + speedIncrease) * deltaSeconds;
     });
 
@@ -501,7 +684,11 @@ function gameLoop(timestamp) {
         playerHitFlashFrames === 0 &&
         checkCollision(playerHitbox, getEnemyHitbox(enemy))
       ) {
-        lives = Math.max(0, lives - 1);
+        if (shields > 0) {
+          shields -= 1; // 장애물에 맞았을 때 생명보다 보호막이 먼저 깎입니다.
+        } else {
+          lives = Math.max(0, lives - 1);
+        }
         playerHitFlashFrames = playerHitFlashDuration;
         createExplosion(enemy.x, enemy.y);
 
@@ -512,7 +699,6 @@ function gameLoop(timestamp) {
         }
 
         if (lives === 0) {
-          score = Math.floor((Date.now() - startTime) / 1000);
           gameState = "gameover";
         }
       }
@@ -564,6 +750,72 @@ function gameLoop(timestamp) {
         recoveryItems.splice(index, 1);
       }
     }
+
+    // 보호막 아이템을 아래로 내리고, 플레이어가 닿으면 보호막을 충전합니다.
+    for (
+      let index = shieldItems.length - 1;
+      index >= 0 && gameState === "playing";
+      index -= 1
+    ) {
+      const shieldItem = shieldItems[index];
+      shieldItem.y += shieldItem.speedY * deltaSeconds;
+
+      const closestX = Math.max(playerX, Math.min(shieldItem.x, playerX + playerWidth));
+      const closestY = Math.max(playerY, Math.min(shieldItem.y, playerY + playerHeight));
+      const distanceX = shieldItem.x - closestX;
+      const distanceY = shieldItem.y - closestY;
+      const touchesPlayer =
+        distanceX * distanceX + distanceY * distanceY <=
+        shieldItemRadius * shieldItemRadius;
+
+      if (touchesPlayer) {
+        shields += 1; // 보호막을 먹으면 먹을수록 증가합니다.
+        shieldEffects.push({
+          x: playerX + playerWidth / 2,
+          y: playerY + playerHeight / 2,
+          age: 0,
+        });
+        shieldItems.splice(index, 1);
+      } else if (shieldItem.y + shieldItemRadius >= roadTop) {
+        shieldItems.splice(index, 1);
+      }
+    }
+
+    // 학생 장애물을 가로로 이동하고, 점프하지 않은 플레이어와의 충돌을 검사합니다.
+    for (let index = studentObstacles.length - 1; index >= 0; index -= 1) {
+      const student = studentObstacles[index];
+      student.x += student.speedX * deltaSeconds;
+      student.animTimer += deltaSeconds;
+
+      // 플레이어와 충돌 검사 (지상에 서 있으면 무조건 닿고, 점프하면 피할 수 있음)
+      if (
+        gameState === "playing" &&
+        playerHitFlashFrames === 0 &&
+        !student.hit &&
+        checkCollision(playerHitbox, student)
+      ) {
+        student.hit = true;
+        if (shields > 0) {
+          shields -= 1;
+        } else {
+          lives = Math.max(0, lives - 1);
+        }
+        playerHitFlashFrames = playerHitFlashDuration;
+        createExplosion(playerX + playerWidth / 2, playerY + playerHeight / 2);
+
+        if (lives === 0) {
+          gameState = "gameover";
+        }
+      }
+
+      // 화면 밖으로 완전히 벗어나면 학생 장애물 제거
+      if (
+        (student.direction === 1 && student.x > canvas.width + 60) ||
+        (student.direction === -1 && student.x + student.width < -60)
+      ) {
+        studentObstacles.splice(index, 1);
+      }
+    }
   }
 
   // 계산: 폭발 파편을 퍼뜨리고 시간이 지난 효과를 정리합니다.
@@ -587,6 +839,14 @@ function gameLoop(timestamp) {
     for (let index = healEffects.length - 1; index >= 0; index -= 1) {
       if (healEffects[index].age >= healEffectDuration) {
         healEffects.splice(index, 1);
+      }
+    }
+    shieldEffects.forEach((effect) => {
+      effect.age += deltaSeconds;
+    });
+    for (let index = shieldEffects.length - 1; index >= 0; index -= 1) {
+      if (shieldEffects[index].age >= shieldEffectDuration) {
+        shieldEffects.splice(index, 1);
       }
     }
 
@@ -630,9 +890,23 @@ function gameLoop(timestamp) {
     ctx.fill();
   });
 
+  // 보호막 아이템 (회색)
+  shieldItems.forEach((shieldItem) => {
+    ctx.fillStyle = "#90a4ae";
+    ctx.beginPath();
+    ctx.arc(shieldItem.x, shieldItem.y, shieldItemRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#cfd8dc";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // 지상 학생 장애물 그리기
+  drawStudents();
+
   drawPlayer();
 
-  // 충돌 판정에 사용하는 플레이어, 적, 회복 아이템의 영역을 표시합니다.
+  // 충돌 판정에 사용하는 플레이어, 적, 회복 아이템, 보호막 아이템, 학생 장애물의 영역을 표시합니다.
   if (showHitbox) {
     ctx.strokeStyle = "red";
     ctx.lineWidth = 1;
@@ -644,11 +918,35 @@ function gameLoop(timestamp) {
     recoveryItems.forEach((recoveryItem) => {
       drawCircleHitbox(recoveryItem.x, recoveryItem.y, recoveryItemRadius);
     });
+    shieldItems.forEach((shieldItem) => {
+      drawCircleHitbox(shieldItem.x, shieldItem.y, shieldItemRadius);
+    });
+    studentObstacles.forEach((student) => {
+      ctx.strokeRect(student.x, student.y, student.width, student.height);
+    });
   }
 
   // 그리기: 충돌 지점에 퍼져 나가는 고리와 불꽃 파편을 그립니다.
   drawExplosions();
   drawHealEffects();
+  drawShieldEffects();
+  drawStudentWarning();
+
+  // 맨 위 중앙: 진행 시간 표시 (MM:SS)
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = Math.floor(elapsedSeconds % 60);
+  const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 22px sans-serif";
+  ctx.fillText(`진행 시간: ${formattedTime}`, canvas.width / 2, 35);
+  ctx.restore();
 
   ctx.fillStyle = "red";
   ctx.font = "26px sans-serif";
@@ -657,9 +955,29 @@ function gameLoop(timestamp) {
   ctx.font = "20px sans-serif";
   ctx.fillText(String(lives), 50, 35);
 
+  // 플레이어가 보호막을 획득했을 때 목숨 숫자 옆에 회색으로 x1, x2... 표시
+  if (shields > 0) {
+    const livesWidth = ctx.measureText(String(lives)).width;
+    ctx.fillStyle = "#b0bec5";
+    ctx.font = "bold 18px sans-serif";
+    ctx.fillText(`x${shields}`, 50 + livesWidth + 8, 35);
+  }
+
+  const displayScore = Math.floor(score);
+  const scoreText = `점수: ${displayScore}`;
   ctx.fillStyle = "white";
   ctx.font = "20px sans-serif";
-  ctx.fillText(`점수: ${score}`, 18, 68);
+  ctx.fillText(scoreText, 18, 68);
+
+  const currentSpeedIncrease =
+    Math.floor(elapsedSeconds / obstacleSpeedIncreaseInterval) * obstacleSpeedIncrease;
+  const currentMultiplier = (obstacleMinSpeed + currentSpeedIncrease) / obstacleMinSpeed;
+  if (currentMultiplier > 1) {
+    const textWidth = ctx.measureText(scoreText).width;
+    ctx.font = "bold 15px sans-serif";
+    ctx.fillStyle = "#ffd34e";
+    ctx.fillText(`(x${currentMultiplier.toFixed(1)})`, 24 + textWidth, 68);
+  }
 
   if (gameState === "paused") {
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
@@ -680,11 +998,15 @@ function gameLoop(timestamp) {
     ctx.textAlign = "center";
     ctx.fillStyle = "white";
     ctx.font = "bold 48px sans-serif";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 35);
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
     ctx.font = "24px sans-serif";
-    ctx.fillText(`최종 점수: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+    ctx.fillText(`최종 점수: ${displayScore}`, canvas.width / 2, canvas.height / 2 + 5);
+    ctx.font = "20px sans-serif";
+    ctx.fillStyle = "#ffd34e";
+    ctx.fillText(`진행 시간: ${formattedTime}`, canvas.width / 2, canvas.height / 2 + 38);
     ctx.font = "18px sans-serif";
-    ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 48);
+    ctx.fillStyle = "white";
+    ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 75);
     ctx.textAlign = "start";
   }
 
@@ -712,6 +1034,7 @@ document.addEventListener("keydown", (event) => {
       nextFastObstacleSpawnTime += pauseDuration;
       const pausePerfDuration = performance.now() - pauseStartPerf;
       lastRecoveryItemSpawnTime += pausePerfDuration;
+      lastShieldItemSpawnTime += pausePerfDuration;
       lastFrameTime = 0;
       gameState = "playing";
       event.preventDefault();
