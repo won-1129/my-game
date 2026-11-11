@@ -1,5 +1,13 @@
+// =========================================
+// ① 준비 (canvas, ctx)
+// =========================================
 const canvas = document.getElementById("game"); // HTML에서 게임 캔버스를 가져옵니다.
 const ctx = canvas.getContext("2d"); // 캔버스에 그림을 그릴 도구를 가져옵니다.
+
+
+// =========================================
+// ② 상태 변수
+// =========================================
 
 // 게임 물체의 크기와 위치, 속도를 모아 둡니다.
 const roadHeight = 75; // 화면 아래쪽 회색 바다의 높이입니다.
@@ -160,7 +168,8 @@ const shieldEffects = []; // 보호막 획득 표시 효과를 저장합니다.
 const shieldEffectDuration = 36 / 60; // 보호막 효과가 유지되는 시간입니다.
 let lives = 3; // 남은 목숨 수를 저장합니다.
 let shields = 0; // 플레이어가 보유한 보호막 개수입니다.
-let showHitbox = false; // true로 설정하면 충돌 판정 영역을 빨간 테두리로 표시합니다.
+let showDebug = false; // true로 설정하면 화면에 디버그 정보를 표시합니다. (F 키로 켜고 끌 수 있습니다)
+let showHitbox = false; // showDebug와 함께 켜지고 꺼지는 충돌 판정 영역 테두리입니다.
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let elapsedSeconds = 0; // 진행 시간(초)입니다.
 let score = 0; // 최소 속도에 비례해 증가하는 게임 점수입니다.
@@ -172,6 +181,91 @@ const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 skyGradient.addColorStop(0, "#4da9e8");
 skyGradient.addColorStop(1, "#d8f1ff");
 
+
+// =========================================
+// ③ 이벤트
+// =========================================
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (gameState === "playing") {
+      gameState = "paused";
+      pauseStartTime = Date.now();
+      pauseStartPerf = performance.now();
+      Object.keys(keys).forEach((key) => {
+        keys[key] = false;
+      });
+      event.preventDefault();
+      return;
+    }
+    if (gameState === "paused") {
+      const pauseDuration = Date.now() - pauseStartTime;
+      startTime += pauseDuration;
+      nextFastObstacleSpawnTime += pauseDuration;
+      const pausePerfDuration = performance.now() - pauseStartPerf;
+      lastRecoveryItemSpawnTime += pausePerfDuration;
+      lastShieldItemSpawnTime += pausePerfDuration;
+      lastFrameTime = 0;
+      gameState = "playing";
+      event.preventDefault();
+      return;
+    }
+  }
+
+  if (gameState === "paused") {
+    if (event.key.startsWith("Arrow") || event.key === " ") {
+      event.preventDefault();
+    }
+    return;
+  }
+  if (gameState === "gameover") {
+    if (event.key.toLowerCase() === "r" && !event.repeat) {
+      resetGame();
+    }
+    if (event.key.startsWith("Arrow") || event.key === " ") {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  // F 키를 누르면 디버그 표시와 히트박스가 함께 켜지고 꺼집니다.
+  if (event.key.toLowerCase() === "f" && !event.repeat) {
+    showDebug = !showDebug;
+    showHitbox = showDebug;
+  }
+
+  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
+  if (controlKey) {
+    if (controlKey === "ArrowUp" && !keys.ArrowUp && isOnGround) {
+      playerVelocityY = -jumpStrength;
+      isOnGround = false;
+    }
+    keys[controlKey] = true; // 방향키와 WASD의 눌림 상태를 저장합니다.
+    event.preventDefault();
+  }
+  if (event.key === " ") {
+    if (!keys.Space && isOnGround) {
+      playerVelocityY = -jumpStrength;
+      isOnGround = false;
+    }
+    keys.Space = true; // 스페이스바를 누른 상태를 저장합니다.
+    event.preventDefault(); // 스페이스바의 페이지 스크롤을 막습니다.
+  }
+});
+
+document.addEventListener("keyup", (event) => {
+  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
+  if (controlKey) {
+    keys[controlKey] = false; // 방향키와 WASD에서 손을 뗀 상태를 저장합니다.
+  }
+  if (event.key === " ") {
+    keys.Space = false; // 스페이스바에서 손을 뗀 상태를 저장합니다.
+  }
+});
+
+
+// =========================================
+// ④ 함수들
+// =========================================
 function resetGame() {
   // 플레이어와 게임 오브젝트를 처음 상태로 되돌립니다.
   playerX = (canvas.width - playerWidth) / 2;
@@ -517,6 +611,32 @@ function drawShieldEffects() {
   ctx.textAlign = "start";
 }
 
+// 화면 왼쪽 위에 디버그 정보를 작은 글씨로 표시합니다.
+function drawDebugInfo() {
+  if (!showDebug) return;
+
+  const debugX = 18;
+  const debugY = 98;
+  const totalEnemies = obstacles.length + fastObstacles.length + studentObstacles.length;
+
+  ctx.save();
+  // 반투명 배경 패널
+  ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+  ctx.fillRect(debugX - 6, debugY - 14, 180, 72);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(debugX - 6, debugY - 14, 180, 72);
+
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "#00ffcc";
+  ctx.fillText(`Player : (${Math.round(playerX)}, ${Math.round(playerY)})`, debugX, debugY);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`Enemies: ${totalEnemies} (기본:${obstacles.length}, 빠름:${fastObstacles.length})`, debugX, debugY + 16);
+  ctx.fillText(`State  : ${gameState}`, debugX, debugY + 32);
+  ctx.fillText(`Score  : ${Math.floor(score)}`, debugX, debugY + 48);
+  ctx.restore();
+}
+
 // 회복 아이템의 원형 충돌 판정 영역을 테두리로 그립니다.
 function drawCircleHitbox(x, y, radius) {
   ctx.beginPath();
@@ -544,6 +664,10 @@ function getEnemyHitbox(enemy) {
   };
 }
 
+
+// =========================================
+// ⑤ 게임 루프
+// =========================================
 function gameLoop(timestamp) {
   const deltaSeconds =
     lastFrameTime === 0
@@ -907,7 +1031,7 @@ function gameLoop(timestamp) {
   drawPlayer();
 
   // 충돌 판정에 사용하는 플레이어, 적, 회복 아이템, 보호막 아이템, 학생 장애물의 영역을 표시합니다.
-  if (showHitbox) {
+  if (showDebug || showHitbox) {
     ctx.strokeStyle = "red";
     ctx.lineWidth = 1;
     ctx.strokeRect(playerX, playerY, playerWidth, playerHeight);
@@ -979,6 +1103,9 @@ function gameLoop(timestamp) {
     ctx.fillText(`(x${currentMultiplier.toFixed(1)})`, 24 + textWidth, 68);
   }
 
+  // 화면 왼쪽 위에 디버그 정보 표시
+  drawDebugInfo();
+
   if (gameState === "paused") {
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1013,76 +1140,9 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
+
+// =========================================
+// ⑥ 시동
+// =========================================
 resetGame();
 requestAnimationFrame(gameLoop);
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    if (gameState === "playing") {
-      gameState = "paused";
-      pauseStartTime = Date.now();
-      pauseStartPerf = performance.now();
-      Object.keys(keys).forEach((key) => {
-        keys[key] = false;
-      });
-      event.preventDefault();
-      return;
-    }
-    if (gameState === "paused") {
-      const pauseDuration = Date.now() - pauseStartTime;
-      startTime += pauseDuration;
-      nextFastObstacleSpawnTime += pauseDuration;
-      const pausePerfDuration = performance.now() - pauseStartPerf;
-      lastRecoveryItemSpawnTime += pausePerfDuration;
-      lastShieldItemSpawnTime += pausePerfDuration;
-      lastFrameTime = 0;
-      gameState = "playing";
-      event.preventDefault();
-      return;
-    }
-  }
-
-  if (gameState === "paused") {
-    if (event.key.startsWith("Arrow") || event.key === " ") {
-      event.preventDefault();
-    }
-    return;
-  }
-  if (gameState === "gameover") {
-    if (event.key.toLowerCase() === "r" && !event.repeat) {
-      resetGame();
-    }
-    if (event.key.startsWith("Arrow") || event.key === " ") {
-      event.preventDefault();
-    }
-    return;
-  }
-
-  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
-  if (controlKey) {
-    if (controlKey === "ArrowUp" && !keys.ArrowUp && isOnGround) {
-      playerVelocityY = -jumpStrength;
-      isOnGround = false;
-    }
-    keys[controlKey] = true; // 방향키와 WASD의 눌림 상태를 저장합니다.
-    event.preventDefault();
-  }
-  if (event.key === " ") {
-    if (!keys.Space && isOnGround) {
-      playerVelocityY = -jumpStrength;
-      isOnGround = false;
-    }
-    keys.Space = true; // 스페이스바를 누른 상태를 저장합니다.
-    event.preventDefault(); // 스페이스바의 페이지 스크롤을 막습니다.
-  }
-});
-
-document.addEventListener("keyup", (event) => {
-  const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
-  if (controlKey) {
-    keys[controlKey] = false; // 방향키와 WASD에서 손을 뗀 상태를 저장합니다.
-  }
-  if (event.key === " ") {
-    keys.Space = false; // 스페이스바에서 손을 뗀 상태를 저장합니다.
-  }
-});
