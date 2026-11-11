@@ -10,38 +10,42 @@ const playerPixelSize = 4; // 도트 캐릭터 한 칸의 크기입니다.
 const playerSprite = [
   "..HHHH..",
   ".HHHHHH.",
-  ".HSSSS..",
-  ".HSESSS.",
-  "..SSSS..",
+  "HHSSSSS.",
+  "HSwESSS.",
+  ".HSSMS..",
   "...YY...",
-  ".TTYYTT.",
+  ".TYYYYT.",
   "TTTTTTTT",
-  ".TTTTTT.",
-  ".TT..TT.",
-  ".BB..BB.",
-  "BBB..BBB",
-]; // 청록색 옷과 노란 목도리를 한 오리지널 도트 캐릭터입니다.
+  ".TTppTT.",
+  "..DDDD..",
+  ".DD..DD.",
+  ".FF..FF.",
+]; // 3/4뷰 도트 캐릭터: 머리카락이 얼굴을 감싸고, 눈은 흰자(w)+동공(E) 2픽셀, 볼터치, 청록 상의에 주머니 디테일, 노란 목도리, 남색 바지, 갈색 신발입니다.
 const playerJumpSprite = [
   "..HHHH..",
   ".HHHHHH.",
-  ".HSSSS..",
-  ".HSESSS.",
-  "..SSSS..",
-  ".T.YY.T.",
-  "TTTYYTTT",
+  "HHSSSSS.",
+  "HSwESSS.",
+  ".HSSMS..",
+  "T..YY..T",
+  "TTYYYYTT",
   ".TTTTTT.",
-  "..TTTT..",
-  "..T..T..",
-  ".BB..BB.",
-  ".BB..BB.",
-]; // 공중에서는 팔과 다리를 벌린 점프 포즈를 사용합니다.
+  "..TppT..",
+  "..D..D..",
+  ".DD..DD.",
+  ".FF..FF.",
+]; // 공중에서는 팔을 벌리고 다리를 넓힌 점프 포즈를 사용합니다.
 const playerColors = {
-  H: "#263238",
-  S: "#f2c08b",
-  E: "#263238",
-  T: "#168c83",
-  Y: "#f2c744",
-  B: "#594236",
+  H: "#263238",   // 머리카락 (짙은 회색)
+  S: "#f2c08b",   // 피부색
+  w: "#ffffff",   // 눈 흰자·하이라이트
+  E: "#1a1a2e",   // 눈동자 (짙은 남색)
+  M: "#e8887c",   // 볼터치 (연분홍)
+  Y: "#f2c744",   // 목도리 (노란색)
+  T: "#168c83",   // 상의 기본색 (청록)
+  p: "#0d6b63",   // 상의 주머니·음영 (어두운 청록)
+  D: "#3b4a6b",   // 바지 (짙은 남색)
+  F: "#594236",   // 신발 (갈색)
 };
 const playerSpeed = 300; // 초당 이동 픽셀입니다.
 const gravity = 1800; // 초당 세로 속도에 더하는 중력입니다.
