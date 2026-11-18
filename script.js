@@ -173,7 +173,7 @@ let showHitbox = false; // showDebug와 함께 켜지고 꺼지는 충돌 판정
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let elapsedSeconds = 0; // 진행 시간(초)입니다.
 let score = 0; // 최소 속도에 비례해 증가하는 게임 점수입니다.
-let gameState = "playing"; // 게임 진행 상태를 저장합니다.
+let gameState = "start"; // 게임 진행 상태("start", "playing", "paused", "gameover")를 저장합니다.
 let lastFrameTime = 0; // 이전 프레임의 시간입니다.
 let pauseStartTime = 0; // 일시정지 시작 시각입니다.
 let pauseStartPerf = 0; // 일시정지 시작 고정밀 시각입니다.
@@ -186,6 +186,29 @@ skyGradient.addColorStop(1, "#d8f1ff");
 // ③ 이벤트
 // =========================================
 document.addEventListener("keydown", (event) => {
+  // 시작 화면에서 아무 키나 누르면 게임을 시작합니다.
+  if (gameState === "start") {
+    resetGame();
+    gameState = "playing";
+    const controlKey = controlKeyMap[event.key] || controlKeyMap[event.key.toLowerCase()];
+    if (controlKey) {
+      if (controlKey === "ArrowUp" && isOnGround) {
+        playerVelocityY = -jumpStrength;
+        isOnGround = false;
+      }
+      keys[controlKey] = true;
+    }
+    if (event.key === " ") {
+      if (isOnGround) {
+        playerVelocityY = -jumpStrength;
+        isOnGround = false;
+      }
+      keys.Space = true;
+    }
+    event.preventDefault();
+    return;
+  }
+
   if (event.key === "Escape") {
     if (gameState === "playing") {
       gameState = "paused";
@@ -259,6 +282,14 @@ document.addEventListener("keyup", (event) => {
   }
   if (event.key === " ") {
     keys.Space = false; // 스페이스바에서 손을 뗀 상태를 저장합니다.
+  }
+});
+
+// 시작 화면에서 마우스 클릭으로도 게임을 시작할 수 있게 합니다.
+window.addEventListener("click", () => {
+  if (gameState === "start") {
+    resetGame();
+    gameState = "playing";
   }
 });
 
@@ -634,6 +665,44 @@ function drawDebugInfo() {
   ctx.fillText(`Enemies: ${totalEnemies} (기본:${obstacles.length}, 빠름:${fastObstacles.length})`, debugX, debugY + 16);
   ctx.fillText(`State  : ${gameState}`, debugX, debugY + 32);
   ctx.fillText(`Score  : ${Math.floor(score)}`, debugX, debugY + 48);
+  ctx.restore();
+}
+
+// 시작 화면(제목, 목표, 조작법, 시작 안내)을 그립니다.
+function drawStartScreen() {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = "center";
+
+  // 게임 제목: 과제 피하기 (큰 글씨)
+  ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 48px sans-serif";
+  ctx.fillText("과제 피하기", canvas.width / 2, canvas.height / 2 - 70);
+
+  // 목표 한 줄: 과제를 피해 살아남으세요!
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = "#e0e0e0";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("과제를 피해 살아남으세요!", canvas.width / 2, canvas.height / 2 - 15);
+
+  // 조작법 한 줄: 방향키, WASD
+  ctx.fillStyle = "#ffd34e";
+  ctx.font = "18px sans-serif";
+  ctx.fillText("조작법: 방향키, WASD", canvas.width / 2, canvas.height / 2 + 30);
+
+  // 아래쪽: 클릭 또는 아무 키나 눌러 시작 (작은 글씨, 깜빡임 효과)
+  if (Math.floor(Date.now() / 500) % 2 === 0) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 16px sans-serif";
+    ctx.fillText("클릭 또는 아무 키나 눌러 시작", canvas.width / 2, canvas.height / 2 + 100);
+  }
+
   ctx.restore();
 }
 
@@ -1106,6 +1175,10 @@ function gameLoop(timestamp) {
   // 화면 왼쪽 위에 디버그 정보 표시
   drawDebugInfo();
 
+  if (gameState === "start") {
+    drawStartScreen();
+  }
+
   if (gameState === "paused") {
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1145,4 +1218,5 @@ function gameLoop(timestamp) {
 // ⑥ 시동
 // =========================================
 resetGame();
+gameState = "start";
 requestAnimationFrame(gameLoop);
