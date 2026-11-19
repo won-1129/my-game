@@ -1,8 +1,21 @@
 // =========================================
-// ① 준비 (canvas, ctx)
+// ① 준비 (canvas, ctx, 오디오)
 // =========================================
 const canvas = document.getElementById("game"); // HTML에서 게임 캔버스를 가져옵니다.
 const ctx = canvas.getContext("2d"); // 캔버스에 그림을 그릴 도구를 가져옵니다.
+
+// 효과음 오디오 객체 준비 (파일이 없거나 로드에 실패해도 게임이 멈추지 않도록 처리)
+function createAudio(src) {
+  try {
+    const audio = new Audio(src);
+    audio.addEventListener("error", () => {});
+    return audio;
+  } catch (e) {
+    return null;
+  }
+}
+const hitSound = createAudio("Hit.wav");
+const lifeupSound = createAudio("lifeup.wav");
 
 
 // =========================================
@@ -170,6 +183,7 @@ let lives = 3; // 남은 목숨 수를 저장합니다.
 let shields = 0; // 플레이어가 보유한 보호막 개수입니다.
 let showDebug = false; // true로 설정하면 화면에 디버그 정보를 표시합니다. (F 키로 켜고 끌 수 있습니다)
 let showHitbox = false; // showDebug와 함께 켜지고 꺼지는 충돌 판정 영역 테두리입니다.
+let isMuted = false; // 음소거 상태를 저장합니다. (M 키로 켜고 끌 수 있습니다)
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let elapsedSeconds = 0; // 진행 시간(초)입니다.
 let score = 0; // 최소 속도에 비례해 증가하는 게임 점수입니다.
@@ -186,6 +200,12 @@ skyGradient.addColorStop(1, "#d8f1ff");
 // ③ 이벤트
 // =========================================
 document.addEventListener("keydown", (event) => {
+  // M 키를 누르면 음소거를 켜고 끕니다.
+  if (event.key.toLowerCase() === "m" && !event.repeat) {
+    isMuted = !isMuted;
+    return;
+  }
+
   // 시작 화면에서 아무 키나 누르면 게임을 시작합니다.
   if (gameState === "start") {
     resetGame();
@@ -706,6 +726,42 @@ function drawStartScreen() {
   ctx.restore();
 }
 
+// 효과음을 재생합니다. (연속 재생을 위해 currentTime을 0으로 되감고, 에러 방지 처리)
+function playSound(sound) {
+  if (isMuted || !sound) return;
+  try {
+    sound.currentTime = 0;
+    const playPromise = sound.play();
+    if (playPromise !== undefined && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {
+        // 소리 파일이 없거나 브라우저 자동 재생 제한으로 실패해도 무시
+      });
+    }
+  } catch (e) {
+    // 에러 발생 시 게임 중단 방지
+  }
+}
+
+// 화면 오른쪽 위에 음소거 상태를 작게 표시합니다.
+function drawMuteStatus() {
+  ctx.save();
+  ctx.textAlign = "right";
+  ctx.font = "bold 13px sans-serif";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  if (isMuted) {
+    ctx.fillStyle = "#ff6b6b";
+    ctx.fillText("🔇 음소거 [M]", canvas.width - 18, 32);
+  } else {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.fillText("🔊 소리 [M]", canvas.width - 18, 32);
+  }
+  ctx.restore();
+}
+
 // 회복 아이템의 원형 충돌 판정 영역을 테두리로 그립니다.
 function drawCircleHitbox(x, y, radius) {
   ctx.beginPath();
@@ -877,6 +933,7 @@ function gameLoop(timestamp) {
         playerHitFlashFrames === 0 &&
         checkCollision(playerHitbox, getEnemyHitbox(enemy))
       ) {
+        playSound(hitSound); // 충돌 효과음 재생
         if (shields > 0) {
           shields -= 1; // 장애물에 맞았을 때 생명보다 보호막이 먼저 깎입니다.
         } else {
@@ -930,6 +987,7 @@ function gameLoop(timestamp) {
         recoveryItemRadius * recoveryItemRadius;
 
       if (touchesPlayer) {
+        playSound(lifeupSound); // 목숨 증가 아이템 획득 효과음 재생
         if (lives < 3) {
           lives += 1;
           healEffects.push({
@@ -988,6 +1046,7 @@ function gameLoop(timestamp) {
         checkCollision(playerHitbox, student)
       ) {
         student.hit = true;
+        playSound(hitSound); // 충돌 효과음 재생
         if (shields > 0) {
           shields -= 1;
         } else {
@@ -1209,6 +1268,9 @@ function gameLoop(timestamp) {
     ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 75);
     ctx.textAlign = "start";
   }
+
+  // 화면 구석(오른쪽 위)에 음소거 상태를 작게 표시합니다.
+  drawMuteStatus();
 
   requestAnimationFrame(gameLoop);
 }

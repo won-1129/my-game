@@ -31,7 +31,6 @@ const timeUntilSpawn = nextStudentSpawnTime - elapsedSeconds; 이 가장 중요�
 ## 사용한 에셋
 | 파일 | 용도 | 출처 | 라이선스 |
 |---|---|---|---|
-| player.png | 플레이어 | (주소) | CC0 |
-| hit.mp3 | 충돌 효과음 | (주소) | CC BY (작자: ○○) |
-| bg.png | 배경 | 직접 제작 | - |
-| enemy.png | 적 | AI 생성 (도구명) | - |
+| lifeup.wav | 목숨증가 | 직접 제작 (bfxr.net) | - |
+| Hit.wav | 충돌 효과음 | 직접 제작 (bfxr.net) | - |
+| jump.wav | 점프 | 직접 제작 (bfxr.net) | - |
