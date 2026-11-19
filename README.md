@@ -34,3 +34,4 @@ const timeUntilSpawn = nextStudentSpawnTime - elapsedSeconds; 이 가장 중요�
 | lifeup.wav | 목숨증가 | 직접 제작 (bfxr.net) | - |
 | Hit.wav | 충돌 효과음 | 직접 제작 (bfxr.net) | - |
 | jump.wav | 점프 | 직접 제작 (bfxr.net) | - |
+*배경과 플레이어는 ai로 도트찍어서 만듬.

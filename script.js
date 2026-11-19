@@ -238,7 +238,8 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.key === "Escape") {
+  // P 키 또는 ESC 키로 일시정지 / 계속하기를 토글합니다.
+  if (event.key.toLowerCase() === "p" || event.key === "Escape") {
     if (gameState === "playing") {
       gameState = "paused";
       pauseStartTime = Date.now();
@@ -1286,7 +1287,7 @@ function gameLoop(timestamp) {
     ctx.fillText("일시정지", canvas.width / 2, canvas.height / 2 - 15);
     ctx.font = "18px sans-serif";
     ctx.fillStyle = "#e0e0e0";
-    ctx.fillText("ESC 키를 눌러 계속하기", canvas.width / 2, canvas.height / 2 + 30);
+    ctx.fillText("P 키(또는 ESC)를 눌러 계속하기", canvas.width / 2, canvas.height / 2 + 30);
     ctx.textAlign = "start";
   }
 
