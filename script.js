@@ -187,6 +187,15 @@ let isMuted = false; // 음소거 상태를 저장합니다. (M 키로 켜고 �
 let startTime = 0; // 점수 계산을 시작할 시각입니다.
 let elapsedSeconds = 0; // 진행 시간(초)입니다.
 let score = 0; // 최소 속도에 비례해 증가하는 게임 점수입니다.
+let highScore = 0; // localStorage에서 불러온 최고 점수입니다. 없으면 0으로 시작합니다.
+try {
+  const savedHighScore = localStorage.getItem("highScore");
+  highScore = savedHighScore !== null ? Number(savedHighScore) : 0;
+  if (isNaN(highScore)) highScore = 0;
+} catch (e) {
+  highScore = 0;
+}
+let isNewRecord = false; // 최고 점수를 새로 경신했는지 여부입니다.
 let gameState = "start"; // 게임 진행 상태("start", "playing", "paused", "gameover")를 저장합니다.
 let lastFrameTime = 0; // 이전 프레임의 시간입니다.
 let pauseStartTime = 0; // 일시정지 시작 시각입니다.
@@ -328,6 +337,7 @@ function resetGame() {
   lives = 3;
   shields = 0;
   score = 0;
+  isNewRecord = false;
   elapsedSeconds = 0;
   startTime = Date.now(); // 게임을 초기화할 때 점수 시작 시각도 새로 기록합니다.
   nextFastObstacleSpawnTime = startTime + fastObstacleUnlockInterval * 1000;
@@ -789,6 +799,23 @@ function getEnemyHitbox(enemy) {
   };
 }
 
+// 게임 오버 처리 및 최고 점수 갱신/저장
+function triggerGameOver() {
+  gameState = "gameover";
+  const finalScore = Math.floor(score);
+  if (finalScore > highScore) {
+    highScore = finalScore;
+    isNewRecord = true;
+    try {
+      localStorage.setItem("highScore", String(highScore));
+    } catch (e) {
+      // localStorage 접근 불가 환경(시크릿 모드 등) 예외 방지
+    }
+  } else {
+    isNewRecord = false;
+  }
+}
+
 
 // =========================================
 // ⑤ 게임 루프
@@ -949,7 +976,7 @@ function gameLoop(timestamp) {
         }
 
         if (lives === 0) {
-          gameState = "gameover";
+          triggerGameOver();
         }
       }
     });
@@ -1056,7 +1083,7 @@ function gameLoop(timestamp) {
         createExplosion(playerX + playerWidth / 2, playerY + playerHeight / 2);
 
         if (lives === 0) {
-          gameState = "gameover";
+          triggerGameOver();
         }
       }
 
@@ -1231,6 +1258,18 @@ function gameLoop(timestamp) {
     ctx.fillText(`(x${currentMultiplier.toFixed(1)})`, 24 + textWidth, 68);
   }
 
+  // 화면 오른쪽 위에 최고 점수 작게 표시
+  ctx.save();
+  ctx.textAlign = "right";
+  ctx.font = "bold 14px sans-serif";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+  ctx.fillStyle = "#ffd34e";
+  ctx.fillText(`👑 최고 점수: ${highScore}`, canvas.width - 18, 58);
+  ctx.restore();
+
   // 화면 왼쪽 위에 디버그 정보 표시
   drawDebugInfo();
 
@@ -1252,21 +1291,42 @@ function gameLoop(timestamp) {
   }
 
   if (gameState === "gameover") {
+    ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+
     ctx.fillStyle = "white";
     ctx.font = "bold 48px sans-serif";
-    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+
+    // 최고 점수를 새로 세웠을 때 신기록 표시
+    if (isNewRecord) {
+      ctx.fillStyle = "#ffeb3b";
+      ctx.font = "bold 20px sans-serif";
+      ctx.fillText("🎉 신기록 달성! 🎉", canvas.width / 2, canvas.height / 2 - 12);
+    }
+
+    ctx.fillStyle = "white";
     ctx.font = "24px sans-serif";
-    ctx.fillText(`최종 점수: ${displayScore}`, canvas.width / 2, canvas.height / 2 + 5);
+    ctx.fillText(`최종 점수: ${displayScore}`, canvas.width / 2, canvas.height / 2 + 24);
+
     ctx.font = "20px sans-serif";
     ctx.fillStyle = "#ffd34e";
-    ctx.fillText(`진행 시간: ${formattedTime}`, canvas.width / 2, canvas.height / 2 + 38);
+    ctx.fillText(`최고 점수: ${highScore}`, canvas.width / 2, canvas.height / 2 + 54);
+
+    ctx.font = "18px sans-serif";
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillText(`진행 시간: ${formattedTime}`, canvas.width / 2, canvas.height / 2 + 84);
+
     ctx.font = "18px sans-serif";
     ctx.fillStyle = "white";
-    ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 75);
-    ctx.textAlign = "start";
+    ctx.fillText("R 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 122);
+    ctx.restore();
   }
 
   // 화면 구석(오른쪽 위)에 음소거 상태를 작게 표시합니다.
